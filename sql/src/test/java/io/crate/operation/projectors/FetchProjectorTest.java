@@ -25,6 +25,7 @@ package io.crate.operation.projectors;
 import com.carrotsearch.hppc.*;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -130,7 +131,7 @@ public class FetchProjectorTest extends CrateUnitTest {
                 fetchOperation,
                 executorService,
                 TestingHelpers.getFunctions(),
-                buildOutputSymbols(),
+                ImmutableMap.of((byte) 0, buildOutputSymbols()),
                 buildFetchProjectorContext(),
                 fetchSize
             );

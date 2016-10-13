@@ -35,13 +35,15 @@ import java.util.List;
 
 public class TwoRelationsUnion implements QueriedRelation {
 
+    private final byte relationId;
     private final boolean distinct;
     private final QuerySpec querySpec = new QuerySpec();
     private QueriedRelation first;
     private QueriedRelation second;
     private QualifiedName name;
 
-    public TwoRelationsUnion(QueriedRelation first, QueriedRelation second, boolean distinct) {
+    public TwoRelationsUnion(byte relationId, QueriedRelation first, QueriedRelation second, boolean distinct) {
+        this.relationId = relationId;
         this.first = first;
         this.second = second;
         this.distinct = distinct;
@@ -96,5 +98,10 @@ public class TwoRelationsUnion implements QueriedRelation {
     @Override
     public QuerySpec querySpec() {
         return querySpec;
+    }
+
+    @Override
+    public byte relationId() {
+        return relationId;
     }
 }

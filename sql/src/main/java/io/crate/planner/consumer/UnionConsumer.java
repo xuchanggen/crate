@@ -25,14 +25,16 @@ package io.crate.planner.consumer;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 import io.crate.analyze.OrderBy;
+import io.crate.analyze.TwoRelationsUnion;
 import io.crate.analyze.UnionSelect;
 import io.crate.analyze.relations.AnalyzedRelation;
 import io.crate.analyze.relations.QueriedRelation;
-import io.crate.analyze.symbol.Literal;
 import io.crate.analyze.symbol.Symbol;
 import io.crate.planner.Limits;
 import io.crate.planner.Merge;
 import io.crate.planner.Plan;
+import io.crate.planner.UnionRewriter;
+import io.crate.planner.node.ExecutionPhases;
 import io.crate.planner.node.dql.UnionPhase;
 import io.crate.planner.node.dql.UnionPlan;
 import io.crate.planner.projection.Projection;
@@ -64,12 +66,7 @@ class UnionConsumer implements Consumer {
                 subPlans.add(Merge.ensureOnHandlerNoDirectResult(subPlan, context.plannerContext()));
             }
 
-            // Add a new symbol as first which acts as a placeholder for the
-            // upstream inputId that is prepended in the union phase
-            List<Symbol> outputsWithPrependedInputId = new ArrayList<>(unionSelect.querySpec().outputs());
-            outputsWithPrependedInputId.add(0, Literal.ZERO);
-
-            final List<Symbol> outputs = unionSelect.querySpec().outputs();
+            List<Symbol> outputs = unionSelect.querySpec().outputs();
             Optional<OrderBy> rootOrderBy = unionSelect.querySpec().orderBy();
             List<Projection> projections = ImmutableList.of();
             if (limits.hasLimit() || rootOrderBy.isPresent()) {
@@ -92,9 +89,24 @@ class UnionConsumer implements Consumer {
                 limits.finalLimit(),
                 limits.offset(),
                 projections,
-                unionSelect.querySpec().outputs(),
+                outputs,
                 Collections.emptyList());
-            return new UnionPlan(unionPhase, subPlans);
+            Plan plan = new UnionPlan(unionPhase, subPlans);
+
+            assert ExecutionPhases.executesOnHandler(
+                context.plannerContext().handlerNode(),
+                plan.resultDescription().nodeIds())
+                : "UnionPlan must not have a distributed result";
+
+            return plan;
+        }
+
+        @Override
+        public Plan visitTwoRelationsUnion(TwoRelationsUnion twoRelationsUnion, ConsumerContext context) {
+            // Currently we only support UNION ALL so it's ok to flatten the union pairs
+            List<QueriedRelation> subRelations = UnionRewriter.flatten(twoRelationsUnion);
+            UnionSelect unionSelect = new UnionSelect(subRelations, twoRelationsUnion.querySpec());
+            return process(unionSelect, context);
         }
     }
 }

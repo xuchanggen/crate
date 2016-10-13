@@ -27,6 +27,7 @@ import io.crate.types.DataTypes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,10 +71,16 @@ public class InputColumn extends Symbol implements Comparable<InputColumn> {
     }
 
     /**
-     * generate an inputColumn which points to some symbol that is part of sourceList
+     * Generate and return an InputColumn which points to the position of the given symbol in the sourceList.
+     * If given symbol is not contained in the sourceList the return null.
      */
+    @Nullable
     public static InputColumn fromSymbol(Symbol symbol, List<? extends Symbol> sourceList) {
-        return new InputColumn(sourceList.indexOf(symbol), symbol.valueType());
+        int idx = sourceList.indexOf(symbol);
+        if (idx < 0) {
+            return null;
+        }
+        return new InputColumn(idx, symbol.valueType());
     }
 
     public InputColumn(int index, @Nullable DataType dataType) {
@@ -117,16 +124,16 @@ public class InputColumn extends Symbol implements Comparable<InputColumn> {
     }
 
     @Override
-    public int compareTo(InputColumn o) {
+    public int compareTo(@Nonnull InputColumn o) {
         return Integer.compare(index, o.index);
     }
 
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this)
-            .add("index", index)
-            .add("type", dataType)
-            .toString();
+                          .add("index", index)
+                          .add("type", dataType)
+                          .toString();
     }
 
     @Override

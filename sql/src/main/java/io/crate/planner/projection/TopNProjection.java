@@ -117,7 +117,6 @@ public class TopNProjection extends Projection {
         return reverseFlags != null && reverseFlags.length > 0;
     }
 
-
     @Override
     public void replaceSymbols(Function<Symbol, Symbol> replaceFunction) {
         Lists2.replaceItems(outputs, replaceFunction);

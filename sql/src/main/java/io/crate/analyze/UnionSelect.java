@@ -76,4 +76,9 @@ public class UnionSelect implements QueriedRelation {
     public void setQualifiedName(@Nonnull QualifiedName qualifiedName) {
         throw new UnsupportedOperationException("setQualifiedName not supported");
     }
+
+    @Override
+    public byte relationId() {
+        throw new UnsupportedOperationException("relationId is not supported");
+    }
 }

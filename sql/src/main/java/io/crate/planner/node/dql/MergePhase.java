@@ -21,7 +21,6 @@
 
 package io.crate.planner.node.dql;
 
-import com.google.common.base.Function;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
@@ -91,11 +90,11 @@ public class MergePhase extends AbstractProjectionsPhase implements UpstreamPhas
         }
     }
 
-    public static MergePhase localMerge(UUID jobId,
-                                        int executionPhaseId,
-                                        List<Projection> projections,
-                                        int numUpstreams,
-                                        Collection<? extends DataType> inputTypes) {
+    public static MergePhase unsortedMerge(UUID jobId,
+                                           int executionPhaseId,
+                                           List<Projection> projections,
+                                           int numUpstreams,
+                                           Collection<? extends DataType> inputTypes) {
         return new MergePhase(
             jobId,
             executionPhaseId,
@@ -166,7 +165,7 @@ public class MergePhase extends AbstractProjectionsPhase implements UpstreamPhas
             );
         } else {
             // no sorting needed
-            mergePhase = MergePhase.localMerge(
+            mergePhase = MergePhase.unsortedMerge(
                 plannerContext.jobId(),
                 plannerContext.nextExecutionPhaseId(),
                 projections,

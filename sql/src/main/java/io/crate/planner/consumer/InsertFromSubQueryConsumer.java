@@ -23,7 +23,6 @@ package io.crate.planner.consumer;
 
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
 import io.crate.analyze.InsertFromSubQueryAnalyzedStatement;
 import io.crate.analyze.QuerySpec;
 import io.crate.analyze.relations.AnalyzedRelation;
@@ -36,6 +35,7 @@ import io.crate.exceptions.UnsupportedFeatureException;
 import io.crate.metadata.DocReferenceConverter;
 import io.crate.planner.Plan;
 import io.crate.planner.Planner;
+import io.crate.planner.distribution.UpstreamPhase;
 import io.crate.planner.node.dml.InsertFromSubQuery;
 import io.crate.planner.node.dql.MergePhase;
 import io.crate.planner.projection.ColumnIndexWriterProjection;
@@ -97,16 +97,17 @@ public class InsertFromSubQueryConsumer implements Consumer {
             plannedSubQuery.addProjection(indexWriterProjection);
 
             MergePhase mergeNode = null;
-            if (plannedSubQuery.resultIsDistributed()) {
+            UpstreamPhase upstreamPhase = plannedSubQuery.resultPhase();
+            if (!upstreamPhase.executionNodes().equals(plannerContext.handlerNode())) {
                 // add local merge Node which aggregates the distributed results
                 MergeCountProjection mergeCountProjection = MergeCountProjection.INSTANCE;
-                mergeNode = MergePhase.localMerge(
+                mergeNode = MergePhase.unsortedMerge(
                     plannerContext.jobId(),
                     plannerContext.nextExecutionPhaseId(),
                     ImmutableList.<Projection>of(mergeCountProjection),
-                    plannedSubQuery.resultPhase().executionNodes().size(),
+                    upstreamPhase.executionNodes().size(),
                     Symbols.extractTypes(indexWriterProjection.outputs()));
-                mergeNode.executionNodes(Sets.newHashSet(plannerContext.clusterService().localNode().id()));
+                mergeNode.executionNodes(plannerContext.handlerNode());
             }
             return new InsertFromSubQuery(plannedSubQuery, mergeNode, plannerContext.jobId());
         }

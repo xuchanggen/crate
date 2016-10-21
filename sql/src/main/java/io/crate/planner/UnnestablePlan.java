@@ -36,12 +36,8 @@ public abstract class UnnestablePlan implements Plan {
     }
 
     @Override
-    public boolean resultIsDistributed() {
-        return false;
-    }
-
-    @Override
     public UpstreamPhase resultPhase() {
-        throw new UnsupportedOperationException("resultPhase() is not supported on " + getClass().getSimpleName());
+        return null;
+        //throw new UnsupportedOperationException("resultPhase() is not supported on " + getClass().getSimpleName());
     }
 }

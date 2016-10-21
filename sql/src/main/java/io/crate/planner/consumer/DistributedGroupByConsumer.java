@@ -181,7 +181,7 @@ class DistributedGroupByConsumer implements Consumer {
                     limits.offset(),
                     limits.finalLimit(),
                     null);
-                localMergeNode = MergePhase.localMerge(
+                localMergeNode = MergePhase.unsortedMerge(
                     plannerContext.jobId(),
                     plannerContext.nextExecutionPhaseId(),
                     ImmutableList.<Projection>of(topN),

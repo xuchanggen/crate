@@ -42,13 +42,9 @@ public class UpsertById implements Plan {
     }
 
     @Override
-    public boolean resultIsDistributed() {
-        return false;
-    }
-
-    @Override
     public UpstreamPhase resultPhase() {
-        throw new UnsupportedOperationException("UpsertById doesn't have a resultPhase");
+        return null;
+        //throw new UnsupportedOperationException("UpsertById doesn't have a resultPhase");
     }
 
     /**

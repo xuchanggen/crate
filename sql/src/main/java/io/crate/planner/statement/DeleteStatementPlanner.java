@@ -140,7 +140,7 @@ public final class DeleteStatementPlanner {
             whereClause,
             DistributionInfo.DEFAULT_BROADCAST
         );
-        MergePhase mergeNode = MergePhase.localMerge(
+        MergePhase mergeNode = MergePhase.unsortedMerge(
             plannerContext.jobId(),
             plannerContext.nextExecutionPhaseId(),
             ImmutableList.<Projection>of(MergeCountProjection.INSTANCE),

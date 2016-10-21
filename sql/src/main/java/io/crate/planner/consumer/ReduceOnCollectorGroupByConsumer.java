@@ -208,7 +208,7 @@ class ReduceOnCollectorGroupByConsumer implements Consumer {
                     )
                 );
                 // fallback - unsorted local merge
-                localMerge = MergePhase.localMerge(
+                localMerge = MergePhase.unsortedMerge(
                     context.plannerContext().jobId(),
                     context.plannerContext().nextExecutionPhaseId(),
                     handlerProjections,

@@ -34,7 +34,5 @@ public interface Plan {
 
     void addProjection(Projection projection);
 
-    boolean resultIsDistributed();
-
     UpstreamPhase resultPhase();
 }

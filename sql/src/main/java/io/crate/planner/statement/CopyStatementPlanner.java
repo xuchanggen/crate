@@ -172,7 +172,7 @@ public class CopyStatementPlanner {
             analysis.settings().getAsBoolean("shared", null)
         );
 
-        return new CollectAndMerge(collectPhase, MergePhase.localMerge(
+        return new CollectAndMerge(collectPhase, MergePhase.unsortedMerge(
             context.jobId(),
             context.nextExecutionPhaseId(),
             ImmutableList.<Projection>of(MergeCountProjection.INSTANCE),
@@ -202,7 +202,7 @@ public class CopyStatementPlanner {
 
         plan.addProjection(projection);
 
-        MergePhase mergePhase = MergePhase.localMerge(
+        MergePhase mergePhase = MergePhase.unsortedMerge(
             context.jobId(),
             context.nextExecutionPhaseId(),
             ImmutableList.<Projection>of(MergeCountProjection.INSTANCE),

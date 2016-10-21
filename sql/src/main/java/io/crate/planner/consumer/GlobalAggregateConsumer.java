@@ -158,7 +158,7 @@ class GlobalAggregateConsumer implements Consumer {
             table.querySpec().outputs()
         );
         projections.add(topNProjection);
-        MergePhase localMergeNode = MergePhase.localMerge(
+        MergePhase localMergeNode = MergePhase.unsortedMerge(
             plannerContext.jobId(),
             plannerContext.nextExecutionPhaseId(),
             projections,

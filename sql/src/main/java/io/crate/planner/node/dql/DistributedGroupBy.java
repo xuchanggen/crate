@@ -75,11 +75,6 @@ public class DistributedGroupBy implements Plan {
     }
 
     @Override
-    public boolean resultIsDistributed() {
-        return localMergeNode == null;
-    }
-
-    @Override
     public UpstreamPhase resultPhase() {
         return localMergeNode != null ? localMergeNode : reducerMergeNode;
     }

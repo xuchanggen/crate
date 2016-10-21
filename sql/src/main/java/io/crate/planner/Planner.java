@@ -41,6 +41,7 @@ import io.crate.operation.projectors.TopN;
 import io.crate.planner.consumer.ConsumerContext;
 import io.crate.planner.consumer.ConsumingPlanner;
 import io.crate.planner.consumer.UpdateConsumer;
+import io.crate.planner.distribution.UpstreamPhase;
 import io.crate.planner.fetch.IndexBaseVisitor;
 import io.crate.planner.node.ddl.DropTablePlan;
 import io.crate.planner.node.ddl.ESClusterUpdateSettingsPlan;
@@ -91,6 +92,7 @@ public class Planner extends AnalyzedStatementVisitor<Planner.Context, Plan> {
         private final Multimap<TableIdent, TableRouting> tableRoutings = HashMultimap.create();
         private ReaderAllocations readerAllocations;
         private HashMultimap<TableIdent, String> tableIndices;
+        private Collection<String> handlerNode;
 
         public Context(Planner planner,
                        ClusterService clusterService,
@@ -102,6 +104,7 @@ public class Planner extends AnalyzedStatementVisitor<Planner.Context, Plan> {
                        int fetchSize) {
             this.planner = planner;
             this.clusterService = clusterService;
+            this.handlerNode = Collections.singletonList(clusterService.localNode().id());
             this.jobId = jobId;
             this.consumingPlanner = consumingPlanner;
             this.normalizer = normalizer;
@@ -166,6 +169,10 @@ public class Planner extends AnalyzedStatementVisitor<Planner.Context, Plan> {
             UUID subJobId = UUID.randomUUID();
             return planner.process(statement, new Planner.Context(
                 planner, clusterService, subJobId, consumingPlanner, normalizer, transactionContext, 2, 2));
+        }
+
+        public Collection<String> handlerNode() {
+            return handlerNode;
         }
 
         static class ReaderAllocations {
@@ -390,8 +397,31 @@ public class Planner extends AnalyzedStatementVisitor<Planner.Context, Plan> {
      */
     public Plan plan(Analysis analysis, UUID jobId, int softLimit, int fetchSize) {
         AnalyzedStatement analyzedStatement = analysis.analyzedStatement();
-        return process(analyzedStatement, new Context(this,
-            clusterService, jobId, consumingPlanner, normalizer, analysis.transactionContext(), softLimit, fetchSize));
+        Context context = new Context(this,
+            clusterService, jobId, consumingPlanner, normalizer, analysis.transactionContext(), softLimit, fetchSize);
+        Plan plan = process(analyzedStatement, context);
+        UpstreamPhase upstreamPhase = plan.resultPhase();
+        if (upstreamPhase == null) {
+            return plan;
+        }
+        /*
+        // use upstreamPhase.distributionInfo or add more distributionInfo
+        if (upstreamPhase.executionNodes().size() > 1) {
+            // TODO: return new Merge(plan);
+            MergePhase.mergePhase(
+                context,
+                context.handlerNode(),
+                upstreamPhase.executionNodes().size(),
+                null,
+                null,
+                Collections.<Projection>emptyList(),
+                inputs,
+                null
+            );
+            System.out.println(upstreamPhase);
+        }
+        */
+        return plan;
     }
 
     @Override

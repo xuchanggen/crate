@@ -158,7 +158,7 @@ class SelectStatementPlanner {
                 null
             );
             if (!querySpec.orderBy().isPresent()) {
-                localMergePhase = MergePhase.localMerge(
+                localMergePhase = MergePhase.unsortedMerge(
                     context.jobId(),
                     context.nextExecutionPhaseId(),
                     ImmutableList.of(topN, fp),
@@ -209,7 +209,7 @@ class SelectStatementPlanner {
                 return plannedSubQuery;
             }
             assert plannedSubQuery != null : "consumingPlanner should have created a subPlan";
-            assert !plannedSubQuery.resultIsDistributed() : "subQuery must not have a distributed result";
+            //assert !plannedSubQuery.resultIsDistributed() : "subQuery must not have a distributed result";
 
             Planner.Context.ReaderAllocations readerAllocations = context.buildReaderAllocations();
             ArrayList<Reference> docRefs = new ArrayList<>();

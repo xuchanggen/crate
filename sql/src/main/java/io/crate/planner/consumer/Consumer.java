@@ -24,6 +24,49 @@ package io.crate.planner.consumer;
 import io.crate.analyze.relations.AnalyzedRelation;
 import io.crate.planner.Plan;
 
+/**
+ * <p>
+ * A consumer is a component which can create a Plan for a relation.
+ * A consumer plans only so far that the result is complete, but still distributed if possible.
+ *
+ * </p>
+ * For example:
+ *
+ * <pre>
+ *     SELECT count(*), name from t group by 2
+ *
+ *                  |
+ *
+ *      NODE1      NODE2
+ *       CP         CP
+ *        |         |
+ *        |         |
+ *        |         |
+ *       MP         MP      <--- Merge Phase / Reduce Phase
+ *                               Result is "complete" here - so a consumer should stop planning here
+ * </pre>
+ *
+ * Or:
+ *
+ * <pre>
+ *     SELECT * from t        -- no limit
+ *
+ *     NODE1    NODE2
+ *       CP       CP          <-- Result is complete
+ *
+ * BUT:
+ *
+ *     SELECT * from t limit 10
+ *
+ *     NODE1     NODE2
+ *       CP        CP         <-- if CP includes limit 10 both nodes would result in 20 rows.
+ *       |        /                 The result is incomplete
+ *       |______/
+ *       |
+ *       MP (limit 10)        <-- Result is complete
+ *                                (If it's on Node1 or Node2 doesn't matter)
+ * </pre>
+ */
 public interface Consumer {
 
     Plan consume(AnalyzedRelation relation, ConsumerContext context);

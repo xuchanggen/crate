@@ -70,17 +70,18 @@ public class QueryThenFetch implements Plan {
 
     @Override
     public void addProjection(Projection projection) {
-        throw new UnsupportedOperationException("Adding projections to QTF is not possible");
-    }
-
-    @Override
-    public boolean resultIsDistributed() {
-        return false;
+        if (localMerge == null) {
+            subPlan.addProjection(projection);
+        } else {
+            localMerge.addProjection(projection);
+        }
     }
 
     @Override
     public UpstreamPhase resultPhase() {
-        assert localMerge != null;
+        if (localMerge == null) {
+            return subPlan.resultPhase();
+        }
         return localMerge;
     }
 }

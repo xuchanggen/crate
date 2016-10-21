@@ -64,11 +64,6 @@ public class CountPlan implements Plan {
     }
 
     @Override
-    public boolean resultIsDistributed() {
-        return false;
-    }
-
-    @Override
     public UpstreamPhase resultPhase() {
         return mergeNode;
     }

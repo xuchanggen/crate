@@ -186,7 +186,7 @@ class NonDistributedGroupByConsumer implements Consumer {
                     table.querySpec().outputs()
                 ));
             }
-            MergePhase localMergeNode = MergePhase.localMerge(
+            MergePhase localMergeNode = MergePhase.unsortedMerge(
                 context.plannerContext().jobId(),
                 context.plannerContext().nextExecutionPhaseId(),
                 projections,

@@ -68,11 +68,6 @@ public class CollectAndMerge implements Plan {
     }
 
     @Override
-    public boolean resultIsDistributed() {
-        return localMerge == null;
-    }
-
-    @Override
     public UpstreamPhase resultPhase() {
         if (localMerge == null) {
             return collectPhase;

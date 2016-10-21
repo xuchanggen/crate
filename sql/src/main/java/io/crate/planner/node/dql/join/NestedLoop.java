@@ -126,11 +126,6 @@ public class NestedLoop implements Plan {
     }
 
     @Override
-    public boolean resultIsDistributed() {
-        return resultIsDistributed;
-    }
-
-    @Override
     public UpstreamPhase resultPhase() {
         return localMerge == null ? nestedLoopPhase : localMerge;
     }

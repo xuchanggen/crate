@@ -1378,7 +1378,6 @@ public class TransportSQLActionTest extends SQLTransportIntegrationTest {
         assertThat((Integer) response.rows()[0][0], is(1));
         assertThat((Integer) response.rows()[1][0], is(2));
         assertThat((Integer) response.rows()[2][0], is(3));
-
     }
 
     @Test

@@ -83,11 +83,6 @@ public class MultiPhasePlan implements Plan {
     }
 
     @Override
-    public boolean resultIsDistributed() {
-        return rootPlan.resultIsDistributed();
-    }
-
-    @Override
     public UpstreamPhase resultPhase() {
         return rootPlan.resultPhase();
     }

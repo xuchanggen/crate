@@ -25,6 +25,7 @@ import io.crate.analyze.symbol.Symbol;
 import io.crate.metadata.Reference;
 import io.crate.planner.Plan;
 import io.crate.planner.PlanVisitor;
+import io.crate.planner.ResultDescription;
 import io.crate.planner.distribution.UpstreamPhase;
 import io.crate.planner.projection.Projection;
 import org.elasticsearch.common.Nullable;
@@ -42,13 +43,8 @@ public class UpsertById implements Plan {
     }
 
     @Override
-    public boolean resultIsDistributed() {
-        return false;
-    }
-
-    @Override
-    public UpstreamPhase resultPhase() {
-        throw new UnsupportedOperationException("UpsertById doesn't have a resultPhase");
+    public ResultDescription resultDescription() {
+        return ResultDescription.HANDLER_ROW_COUNT;
     }
 
     /**

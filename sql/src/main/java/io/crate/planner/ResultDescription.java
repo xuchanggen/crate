@@ -22,20 +22,33 @@
 
 package io.crate.planner;
 
-import io.crate.planner.projection.Projection;
+import io.crate.planner.distribution.DistributionInfo;
 
-/**
- * A Plan that can only be used as root plan and cannot be used as sub-plan of another plan.
- */
-public abstract class UnnestablePlan implements Plan {
+import java.util.Collection;
+import java.util.Collections;
 
-    @Override
-    public void addProjection(Projection projection) {
-        throw new UnsupportedOperationException("addProjection() is not supported on " + getClass().getSimpleName());
-    }
+public interface ResultDescription {
 
-    @Override
-    public ResultDescription resultDescription() {
-        throw new UnsupportedOperationException("resultDescription() is not supported on" + getClass().getSimpleName());
-    }
+    ResultDescription HANDLER_ROW_COUNT = new ResultDescription() {
+        @Override
+        public Collection<String> executionNodes() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public DistributionInfo distributionInfo() {
+            return DistributionInfo.DEFAULT_BROADCAST;
+        }
+
+        @Override
+        public void distributionInfo(DistributionInfo distributionInfo) {
+            throw new UnsupportedOperationException("Cannot overwrite distributionInfo of HANLDER_ROW_COUNT ResultDescription");
+        }
+    };
+
+    Collection<String> executionNodes();
+
+    DistributionInfo distributionInfo();
+
+    void distributionInfo(DistributionInfo distributionInfo);
 }

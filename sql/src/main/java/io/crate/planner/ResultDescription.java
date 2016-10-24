@@ -22,10 +22,16 @@
 
 package io.crate.planner;
 
+import io.crate.analyze.OrderBy;
+import io.crate.analyze.symbol.Symbol;
+import io.crate.analyze.symbol.Value;
 import io.crate.planner.distribution.DistributionInfo;
+import io.crate.types.DataTypes;
 
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 public interface ResultDescription {
 
@@ -44,6 +50,17 @@ public interface ResultDescription {
         public void distributionInfo(DistributionInfo distributionInfo) {
             throw new UnsupportedOperationException("Cannot overwrite distributionInfo of HANLDER_ROW_COUNT ResultDescription");
         }
+
+        @Nullable
+        @Override
+        public OrderBy orderBy() {
+            return null;
+        }
+
+        @Override
+        public List<Symbol> outputs() {
+            return Collections.<Symbol>singletonList(new Value(DataTypes.LONG));
+        }
     };
 
     Collection<String> executionNodes();
@@ -51,4 +68,9 @@ public interface ResultDescription {
     DistributionInfo distributionInfo();
 
     void distributionInfo(DistributionInfo distributionInfo);
+
+    @Nullable
+    OrderBy orderBy();
+
+    List<Symbol> outputs();
 }

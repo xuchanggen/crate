@@ -20,6 +20,8 @@
 */
 package io.crate.planner.node.dql.join;
 
+import io.crate.analyze.OrderBy;
+import io.crate.analyze.symbol.Symbol;
 import io.crate.planner.Plan;
 import io.crate.planner.PlanVisitor;
 import io.crate.planner.ResultDescription;
@@ -29,6 +31,8 @@ import io.crate.planner.projection.Projection;
 
 import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -143,6 +147,18 @@ public class NestedLoop implements Plan {
                 @Override
                 public void distributionInfo(DistributionInfo distributionInfo) {
                     nestedLoopPhase.distributionInfo(distributionInfo);
+                }
+
+                @Nullable
+                @Override
+                public OrderBy orderBy() {
+                    return null;
+                }
+
+                @Override
+                public List<Symbol> outputs() {
+                    // TODO:
+                    return Collections.emptyList();
                 }
             };
         }

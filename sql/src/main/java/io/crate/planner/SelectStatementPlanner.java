@@ -48,11 +48,13 @@ import io.crate.planner.node.dql.RoutedCollectPhase;
 import io.crate.planner.node.fetch.FetchPhase;
 import io.crate.planner.node.fetch.FetchSource;
 import io.crate.planner.projection.FetchProjection;
+import io.crate.planner.projection.Projection;
 import io.crate.planner.projection.TopNProjection;
 import io.crate.planner.projection.builder.ProjectionBuilder;
 import io.crate.sql.tree.QualifiedName;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Map;
 
 class SelectStatementPlanner {
@@ -210,8 +212,20 @@ class SelectStatementPlanner {
                 return plannedSubQuery;
             }
             assert plannedSubQuery != null : "consumingPlanner should have created a subPlan";
-            assert !(ExecutionPhases.isRemote(context.handlerNode(), plannedSubQuery.resultDescription().executionNodes()))
-                : "subPlan result should already be on handlerNode";
+            ResultDescription resultDescription = plannedSubQuery.resultDescription();
+            MergePhase mergePhase = null;
+            if (ExecutionPhases.isRemote(context.handlerNode(), resultDescription.executionNodes())) {
+                mergePhase = MergePhase.mergePhase(
+                    context,
+                    Collections.singletonList(context.handlerNode()),
+                    resultDescription.executionNodes().size(),
+                    resultDescription.orderBy(),
+                    null,
+                    Collections.<Projection>emptyList(),
+                    resultDescription.outputs(),
+                    null
+                );
+            }
 
             Planner.Context.ReaderAllocations readerAllocations = context.buildReaderAllocations();
             ArrayList<Reference> docRefs = new ArrayList<>();
@@ -235,9 +249,13 @@ class SelectStatementPlanner {
                 readerAllocations.indices(),
                 readerAllocations.indicesToIdents());
 
-            plannedSubQuery.addProjection(fp);
+            if (mergePhase == null) {
+                plannedSubQuery.addProjection(fp);
+            } else {
+                mergePhase.addProjection(fp);
+            }
             return MultiPhasePlan.createIfNeeded(
-                new QueryThenFetch(plannedSubQuery, fetchPhase, null, context.jobId()), subQueries);
+                new QueryThenFetch(plannedSubQuery, fetchPhase, mergePhase, context.jobId()), subQueries);
         }
 
         @Override

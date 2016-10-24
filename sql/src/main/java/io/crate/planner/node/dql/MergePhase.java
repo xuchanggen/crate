@@ -202,6 +202,18 @@ public class MergePhase extends AbstractProjectionsPhase implements UpstreamPhas
         this.distributionInfo = distributionInfo;
     }
 
+    @Nullable
+    @Override
+    public OrderBy orderBy() {
+        return null;
+    }
+
+    @Override
+    public List<Symbol> outputs() {
+        // TODO:
+        return Collections.emptyList();
+    }
+
     public void executionNodes(Collection<String> executionNodes) {
         this.executionNodes = executionNodes;
     }

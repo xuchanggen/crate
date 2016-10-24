@@ -22,7 +22,8 @@ package io.crate.planner.node.dql.join;
 
 import io.crate.planner.Plan;
 import io.crate.planner.PlanVisitor;
-import io.crate.planner.distribution.UpstreamPhase;
+import io.crate.planner.ResultDescription;
+import io.crate.planner.distribution.DistributionInfo;
 import io.crate.planner.node.dql.MergePhase;
 import io.crate.planner.projection.Projection;
 
@@ -54,7 +55,6 @@ import java.util.UUID;
  * If sth. else is selected a projection has to reorder those.
  */
 public class NestedLoop implements Plan {
-
 
     private final Plan left;
     private final Plan right;
@@ -126,13 +126,27 @@ public class NestedLoop implements Plan {
     }
 
     @Override
-    public boolean resultIsDistributed() {
-        return resultIsDistributed;
-    }
+    public ResultDescription resultDescription() {
+        if (localMerge == null) {
+            // TODO:
+            return new ResultDescription() {
+                @Override
+                public Collection<String> executionNodes() {
+                    return NestedLoop.this.nestedLoopPhase.executionNodes();
+                }
 
-    @Override
-    public UpstreamPhase resultPhase() {
-        return localMerge == null ? nestedLoopPhase : localMerge;
+                @Override
+                public DistributionInfo distributionInfo() {
+                    return nestedLoopPhase.distributionInfo();
+                }
+
+                @Override
+                public void distributionInfo(DistributionInfo distributionInfo) {
+                    nestedLoopPhase.distributionInfo(distributionInfo);
+                }
+            };
+        }
+        return localMerge;
     }
 
     @Override

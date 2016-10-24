@@ -30,6 +30,17 @@ import java.util.Collection;
 
 public class ExecutionPhases {
 
+    public static boolean isRemote(String handlerNode, Collection<String> executionNodes) {
+        switch (executionNodes.size()) {
+            case 0:
+                return false;
+            case 1:
+                return !executionNodes.iterator().next().equals(handlerNode);
+            default:
+                return true;
+        }
+    }
+
     public static ExecutionPhase fromStream(StreamInput in) throws IOException {
         ExecutionPhase.Type type = ExecutionPhase.Type.values()[in.readVInt()];
         ExecutionPhase node = type.factory().create();

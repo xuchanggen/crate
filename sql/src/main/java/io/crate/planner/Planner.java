@@ -91,6 +91,7 @@ public class Planner extends AnalyzedStatementVisitor<Planner.Context, Plan> {
         private final Multimap<TableIdent, TableRouting> tableRoutings = HashMultimap.create();
         private ReaderAllocations readerAllocations;
         private HashMultimap<TableIdent, String> tableIndices;
+        private String handlerNode;
 
         public Context(Planner planner,
                        ClusterService clusterService,
@@ -108,6 +109,7 @@ public class Planner extends AnalyzedStatementVisitor<Planner.Context, Plan> {
             this.transactionContext = transactionContext;
             this.softLimit = softLimit;
             this.fetchSize = fetchSize;
+            this.handlerNode = clusterService.localNode().id();
         }
 
         public EvaluatingNormalizer normalizer() {
@@ -166,6 +168,10 @@ public class Planner extends AnalyzedStatementVisitor<Planner.Context, Plan> {
             UUID subJobId = UUID.randomUUID();
             return planner.process(statement, new Planner.Context(
                 planner, clusterService, subJobId, consumingPlanner, normalizer, transactionContext, 2, 2));
+        }
+
+        public String handlerNode() {
+            return handlerNode;
         }
 
         static class ReaderAllocations {

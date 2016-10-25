@@ -26,31 +26,23 @@ import io.crate.planner.PlanVisitor;
 import io.crate.planner.ResultDescription;
 import io.crate.planner.projection.Projection;
 
-import javax.annotation.Nullable;
 import java.util.UUID;
 
-public class CollectAndMerge implements Plan {
+public class Collect implements Plan {
 
     private final CollectPhase collectPhase;
-    private final MergePhase localMerge;
 
-    public CollectAndMerge(CollectPhase collectPhase, @Nullable MergePhase localMerge) {
+    public Collect(CollectPhase collectPhase) {
         this.collectPhase = collectPhase;
-        this.localMerge = localMerge;
     }
 
     public CollectPhase collectPhase() {
         return collectPhase;
     }
 
-    @Nullable
-    public MergePhase localMerge() {
-        return localMerge;
-    }
-
     @Override
     public <C, R> R accept(PlanVisitor<C, R> visitor, C context) {
-        return visitor.visitCollectAndMerge(this, context);
+        return visitor.visitCollect(this, context);
     }
 
     @Override
@@ -60,18 +52,11 @@ public class CollectAndMerge implements Plan {
 
     @Override
     public void addProjection(Projection projection) {
-        if (localMerge != null) {
-            localMerge.addProjection(projection);
-        } else {
-            collectPhase.addProjection(projection);
-        }
+        collectPhase.addProjection(projection);
     }
 
     @Override
     public ResultDescription resultDescription() {
-        if (localMerge == null) {
-            return collectPhase;
-        }
-        return localMerge;
+        return collectPhase;
     }
 }

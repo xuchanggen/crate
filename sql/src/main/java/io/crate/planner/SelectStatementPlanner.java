@@ -41,7 +41,7 @@ import io.crate.planner.consumer.SimpleSelect;
 import io.crate.planner.fetch.FetchPushDown;
 import io.crate.planner.fetch.MultiSourceFetchPushDown;
 import io.crate.planner.node.ExecutionPhases;
-import io.crate.planner.node.dql.CollectAndMerge;
+import io.crate.planner.node.dql.Collect;
 import io.crate.planner.node.dql.MergePhase;
 import io.crate.planner.node.dql.QueryThenFetch;
 import io.crate.planner.node.dql.RoutedCollectPhase;
@@ -129,7 +129,7 @@ class SelectStatementPlanner {
             Plan plannedSubQuery = subPlan(subRelation, context);
             assert plannedSubQuery != null : "consumingPlanner should have created a subPlan";
 
-            CollectAndMerge qaf = (CollectAndMerge) plannedSubQuery;
+            Collect qaf = (Collect) plannedSubQuery;
             RoutedCollectPhase collectPhase = ((RoutedCollectPhase) qaf.collectPhase());
 
             if (collectPhase.nodePageSizeHint() == null && limits.limitAndOffset > TopN.NO_LIMIT) {
@@ -149,8 +149,6 @@ class SelectStatementPlanner {
                 table, querySpec, fetchPushDown, readerAllocations, fetchPhase, context.fetchSize());
 
             MergePhase localMergePhase;
-            assert qaf.localMerge() == null : "subRelation shouldn't plan localMerge";
-
             TopNProjection topN = ProjectionBuilder.topNProjection(
                 collectPhase.toCollect(),
                 null, // orderBy = null because stuff is pre-sorted in collectPhase and sortedLocalMerge is used

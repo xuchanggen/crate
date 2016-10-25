@@ -211,12 +211,9 @@ public class PlanPrinter {
         }
 
         @Override
-        public ImmutableMap.Builder<String, Object> visitCollectAndMerge(CollectAndMerge plan, Void context) {
+        public ImmutableMap.Builder<String, Object> visitCollect(Collect plan, Void context) {
             ImmutableMap.Builder<String, Object> b = visitPlan(plan, context)
                 .put("collectPhase", phaseMap(plan.collectPhase()));
-            if (plan.localMerge() != null) {
-                b.put("localMerge", phaseMap(plan.localMerge()));
-            }
             return b;
         }
 
@@ -266,6 +263,13 @@ public class PlanPrinter {
             return visitPlan(multiPhasePlan, context)
                 .put("rootPlan", toMap(multiPhasePlan.rootPlan()))
                 .put("dependencies", dependencies);
+        }
+
+        @Override
+        public ImmutableMap.Builder<String, Object> visitMerge(Merge merge, Void context) {
+            return visitPlan(merge, context)
+                .put("subPlan", toMap(merge.subPlan()))
+                .put("mergePhase", phaseMap(merge.mergePhase()));
         }
     }
 }

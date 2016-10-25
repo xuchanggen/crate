@@ -47,10 +47,7 @@ import io.crate.operation.NodeOperation;
 import io.crate.operation.NodeOperationTree;
 import io.crate.operation.projectors.ProjectionToProjectorVisitor;
 import io.crate.operation.projectors.RowReceiver;
-import io.crate.planner.MultiPhasePlan;
-import io.crate.planner.NoopPlan;
-import io.crate.planner.Plan;
-import io.crate.planner.PlanVisitor;
+import io.crate.planner.*;
 import io.crate.planner.distribution.DistributionType;
 import io.crate.planner.distribution.UpstreamPhase;
 import io.crate.planner.node.ExecutionPhase;
@@ -526,10 +523,15 @@ public class TransportExecutor implements Executor {
         }
 
         @Override
-        public Void visitCollectAndMerge(CollectAndMerge plan, NodeOperationTreeContext context) {
-            context.addPhase(plan.localMerge());
+        public Void visitCollect(Collect plan, NodeOperationTreeContext context) {
             context.addCollectExecutionPhase(plan.collectPhase());
+            return null;
+        }
 
+        @Override
+        public Void visitMerge(Merge merge, NodeOperationTreeContext context) {
+            context.addPhase(merge.mergePhase());
+            process(merge.subPlan(), context);
             return null;
         }
 

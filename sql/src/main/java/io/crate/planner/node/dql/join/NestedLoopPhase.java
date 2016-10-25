@@ -24,9 +24,9 @@ package io.crate.planner.node.dql.join;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import io.crate.analyze.OrderBy;
 import io.crate.analyze.symbol.Symbol;
 import io.crate.analyze.symbol.Symbols;
-import io.crate.operation.projectors.RowReceiver;
 import io.crate.planner.ResultDescription;
 import io.crate.planner.distribution.DistributionInfo;
 import io.crate.planner.distribution.UpstreamPhase;
@@ -39,10 +39,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 public class NestedLoopPhase extends AbstractProjectionsPhase implements UpstreamPhase, ResultDescription {
 
@@ -228,5 +225,16 @@ public class NestedLoopPhase extends AbstractProjectionsPhase implements Upstrea
     @Override
     public void distributionInfo(DistributionInfo distributionInfo) {
         this.distributionInfo = distributionInfo;
+    }
+
+    @Nullable
+    @Override
+    public OrderBy orderBy() {
+        return null;
+    }
+
+    @Override
+    public List<? extends Symbol> outputs() {
+        return Collections.emptyList();
     }
 }

@@ -148,9 +148,8 @@ public class RoutedCollectPhase extends AbstractProjectionsPhase implements Coll
      * E.g. in a query like <pre>select * from t limit 1000</pre> in a 2 node cluster each node probably only has to return 500 rows.
      * </p>
      */
-    public
     @Nullable
-    Integer nodePageSizeHint() {
+    public Integer nodePageSizeHint() {
         return nodePageSizeHint;
     }
 
@@ -195,10 +194,17 @@ public class RoutedCollectPhase extends AbstractProjectionsPhase implements Coll
         return Paging.getWeightedPageSize(nodePageSizeHint, 1.0d / Math.max(1, routing.numShards(nodeId)));
     }
 
-    public
     @Nullable
-    OrderBy orderBy() {
+    public OrderBy orderBy() {
         return orderBy;
+    }
+
+    @Override
+    public List<? extends Symbol> outputs() {
+        if (projections.size() == 0) {
+            return toCollect;
+        }
+        return projections.get(projections.size() - 1).outputs();
     }
 
     public void orderBy(@Nullable OrderBy orderBy) {
@@ -293,7 +299,7 @@ public class RoutedCollectPhase extends AbstractProjectionsPhase implements Coll
      * @return a normalized node, if no changes occurred returns this
      */
     public RoutedCollectPhase normalize(EvaluatingNormalizer normalizer, TransactionContext transactionContext) {
-        assert whereClause() != null : "whereClause must not be null";
+        assert whereClause() != null;
         RoutedCollectPhase result = this;
         List<Symbol> newToCollect = normalizer.normalize(toCollect(), transactionContext);
         boolean changed = newToCollect != toCollect();

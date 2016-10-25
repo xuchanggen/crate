@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.*;
 
 @ESIntegTestCase.ClusterScope(numClientNodes = 0, numDataNodes = 2)
-@UseJdbc
+@UseJdbc(0)
 public class SysShardsTest extends SQLTransportIntegrationTest {
 
     @Before

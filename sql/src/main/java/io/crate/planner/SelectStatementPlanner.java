@@ -86,9 +86,17 @@ class SelectStatementPlanner {
             this.consumingPlanner = consumingPlanner;
         }
 
+        private Plan invokeConsumingPlanner(AnalyzedRelation relation, Planner.Context context) {
+            Plan plan = consumingPlanner.plan(relation, context);
+            if (ExecutionPhases.isRemote(context.handlerNode(), plan.resultDescription().executionNodes())) {
+                plan = Merge.mergeToHandler(plan, context);
+            }
+            return plan;
+        }
+
         @Override
         protected Plan visitAnalyzedRelation(AnalyzedRelation relation, Planner.Context context) {
-            return consumingPlanner.plan(relation, context);
+            return invokeConsumingPlanner(relation, context);
         }
 
         @Override
@@ -106,7 +114,7 @@ class SelectStatementPlanner {
             SubqueryPlanner subqueryPlanner = new SubqueryPlanner(context);
             Map<Plan, SelectSymbol> subQueries = subqueryPlanner.planSubQueries(querySpec);
             if (querySpec.hasAggregates() || querySpec.groupBy().isPresent()) {
-                Plan subPlan = consumingPlanner.plan(table, context);
+                Plan subPlan = invokeConsumingPlanner(table, context);
                 return MultiPhasePlan.createIfNeeded(subPlan, subQueries);
             }
             if (querySpec.where().docKeys().isPresent() && !table.tableRelation().tableInfo().isAlias()) {
@@ -124,7 +132,7 @@ class SelectStatementPlanner {
             FetchPushDown fetchPushDown = new FetchPushDown(querySpec, table.tableRelation());
             QueriedDocTable subRelation = fetchPushDown.pushDown();
             if (subRelation == null) {
-                return MultiPhasePlan.createIfNeeded(consumingPlanner.plan(table, context), subQueries);
+                return MultiPhasePlan.createIfNeeded(invokeConsumingPlanner(table, context), subQueries);
             }
             Plan plannedSubQuery = subPlan(subRelation, context);
             assert plannedSubQuery != null : "consumingPlanner should have created a subPlan";

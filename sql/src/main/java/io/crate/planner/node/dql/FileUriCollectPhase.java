@@ -23,6 +23,7 @@ package io.crate.planner.node.dql;
 
 import com.google.common.base.MoreObjects;
 import io.crate.analyze.EvaluatingNormalizer;
+import io.crate.analyze.OrderBy;
 import io.crate.analyze.symbol.Symbol;
 import io.crate.analyze.symbol.Symbols;
 import io.crate.metadata.TransactionContext;
@@ -183,6 +184,17 @@ public class FileUriCollectPhase extends AbstractProjectionsPhase implements Col
     @Override
     public void distributionInfo(DistributionInfo distributionInfo) {
         this.distributionInfo = distributionInfo;
+    }
+
+    @Nullable
+    @Override
+    public OrderBy orderBy() {
+        return null;
+    }
+
+    @Override
+    public List<Symbol> outputs() {
+        return toCollect;
     }
 }
 

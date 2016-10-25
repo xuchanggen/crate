@@ -150,7 +150,7 @@ public class MergePhase extends AbstractProjectionsPhase implements UpstreamPhas
                                         @Nullable OrderBy orderBy,
                                         @Nullable List<? extends Symbol> orderBySymbols,
                                         List<Projection> projections,
-                                        List<Symbol> inputs,
+                                        List<? extends Symbol> inputs,
                                         @Nullable List<DataType> inputTypes) {
         MergePhase mergePhase;
         if (orderBy != null) {
@@ -200,6 +200,18 @@ public class MergePhase extends AbstractProjectionsPhase implements UpstreamPhas
     @Override
     public void distributionInfo(DistributionInfo distributionInfo) {
         this.distributionInfo = distributionInfo;
+    }
+
+    @Nullable
+    @Override
+    public OrderBy orderBy() {
+        return null;
+    }
+
+    @Override
+    public List<Symbol> outputs() {
+        // TODO:
+        return Collections.emptyList();
     }
 
     public void executionNodes(Collection<String> executionNodes) {

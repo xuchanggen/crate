@@ -30,14 +30,10 @@ import io.crate.analyze.QueriedTableRelation;
 import io.crate.analyze.QuerySpec;
 import io.crate.analyze.relations.AnalyzedRelation;
 import io.crate.analyze.relations.QueriedDocTable;
-import io.crate.analyze.symbol.Function;
 import io.crate.analyze.symbol.InputColumn;
 import io.crate.analyze.symbol.Symbol;
-import io.crate.analyze.symbol.SymbolVisitor;
 import io.crate.collections.Lists2;
-import io.crate.exceptions.UnsupportedFeatureException;
 import io.crate.exceptions.VersionInvalidException;
-import io.crate.operation.predicate.MatchPredicate;
 import io.crate.planner.Limits;
 import io.crate.planner.Merge;
 import io.crate.planner.Plan;
@@ -66,7 +62,6 @@ public class QueryAndFetchConsumer implements Consumer {
 
     private static class Visitor extends RelationPlanningVisitor {
 
-        private static final NoPredicateVisitor NO_PREDICATE_VISITOR = new NoPredicateVisitor();
 
         @Override
         public Plan visitQueriedDocTable(QueriedDocTable table, ConsumerContext context) {
@@ -87,26 +82,9 @@ public class QueryAndFetchConsumer implements Consumer {
                 return null;
             }
             if (querySpec.where().hasQuery()) {
-                ensureNoLuceneOnlyPredicates(querySpec.where().query());
+                NoPredicateVisitor.ensureNoLuceneOnlyPredicates(querySpec.where().query());
             }
             return normalSelect(table, context, querySpec.outputs());
-        }
-
-        private void ensureNoLuceneOnlyPredicates(Symbol query) {
-            NO_PREDICATE_VISITOR.process(query, null);
-        }
-
-        private static class NoPredicateVisitor extends SymbolVisitor<Void, Void> {
-            @Override
-            public Void visitFunction(Function symbol, Void context) {
-                if (symbol.info().ident().name().equals(MatchPredicate.NAME)) {
-                    throw new UnsupportedFeatureException("Cannot use match predicate on system tables");
-                }
-                for (Symbol argument : symbol.arguments()) {
-                    process(argument, context);
-                }
-                return null;
-            }
         }
 
         private Plan normalSelect(QueriedTableRelation table, ConsumerContext context, List<Symbol> outputSymbols) {
@@ -202,4 +180,5 @@ public class QueryAndFetchConsumer implements Consumer {
             return new Merge(collect, mergeNode);
         }
     }
+
 }

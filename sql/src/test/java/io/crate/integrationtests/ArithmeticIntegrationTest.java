@@ -21,6 +21,7 @@
 
 package io.crate.integrationtests;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import io.crate.action.sql.SQLActionException;
 import io.crate.testing.TestingHelpers;
 import io.crate.testing.UseJdbc;
@@ -33,6 +34,7 @@ import static org.hamcrest.core.Is.is;
 
 
 @UseJdbc
+@Seed("318F11DAB72BB449:DADD0A158EFD41B4")
 public class ArithmeticIntegrationTest extends SQLTransportIntegrationTest {
 
     @Test

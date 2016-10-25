@@ -65,7 +65,7 @@ public class PlanVisitor<C, R> {
         return visitPlan(node, context);
     }
 
-    public R visitCollectAndMerge(CollectAndMerge plan, C context) {
+    public R visitCollect(Collect plan, C context) {
         return visitPlan(plan, context);
     }
 
@@ -131,5 +131,9 @@ public class PlanVisitor<C, R> {
 
     public R visitMultiPhasePlan(MultiPhasePlan multiPhasePlan, C context) {
         return visitPlan(multiPhasePlan, context);
+    }
+
+    public R visitMerge(Merge merge, C context) {
+        return visitPlan(merge, context);
     }
 }

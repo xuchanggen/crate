@@ -155,8 +155,8 @@ public class NestedLoopConsumerTest extends CrateUnitTest {
     @Test
     public void testNoLimitPushDownWithJoinConditionOnDocTables() throws Exception {
         NestedLoop plan = plan("select u1.name, u2.name from users u1, users u2 where u1.name = u2.name  order by 1, 2 limit 10");
-        assertThat(((CollectAndMerge) plan.left()).collectPhase().projections().size(), is(0));
-        assertThat(((CollectAndMerge) plan.right()).collectPhase().projections().size(), is(0));
+        assertThat(((Collect) plan.left()).collectPhase().projections().size(), is(0));
+        assertThat(((Collect) plan.right()).collectPhase().projections().size(), is(0));
     }
 
     @SuppressWarnings("unchecked")
@@ -220,8 +220,8 @@ public class NestedLoopConsumerTest extends CrateUnitTest {
         NestedLoop plan = plan("select * from information_schema.tables, information_schema .columns " +
                                "where tables.table_schema = columns.table_schema " +
                                "and tables.table_name = columns.table_name limit 10");
-        assertThat(((CollectAndMerge) plan.left()).collectPhase().projections().size(), is(0));
-        assertThat(((CollectAndMerge) plan.right()).collectPhase().projections().size(), is(0));
+        assertThat(((Collect) plan.left()).collectPhase().projections().size(), is(0));
+        assertThat(((Collect) plan.right()).collectPhase().projections().size(), is(0));
     }
 
     @Test
@@ -229,8 +229,8 @@ public class NestedLoopConsumerTest extends CrateUnitTest {
         NestedLoop plan = plan("select * from information_schema.tables, information_schema .columns " +
                                "where tables.table_schema = columns.table_schema " +
                                "and tables.table_name = columns.table_name limit 10");
-        assertThat(((RoutedCollectPhase) ((CollectAndMerge) plan.left()).collectPhase()).nodePageSizeHint(), nullValue());
-        assertThat(((RoutedCollectPhase) ((CollectAndMerge) plan.right()).collectPhase()).nodePageSizeHint(), nullValue());
+        assertThat(((RoutedCollectPhase) ((Collect) plan.left()).collectPhase()).nodePageSizeHint(), nullValue());
+        assertThat(((RoutedCollectPhase) ((Collect) plan.right()).collectPhase()).nodePageSizeHint(), nullValue());
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -242,7 +242,7 @@ public class NestedLoopConsumerTest extends CrateUnitTest {
         NestedLoop plan = plan("select u1.name, u2.name from users u1, users u2 order by u1.name, u2.name");
 
         assertThat(plan.left().resultDescription(), instanceOf(RoutedCollectPhase.class));
-        CollectAndMerge leftPlan = (CollectAndMerge) plan.left();
+        Collect leftPlan = (Collect) plan.left();
         CollectPhase collectPhase = leftPlan.collectPhase();
         assertThat(collectPhase.projections().size(), is(0));
         assertThat(collectPhase.toCollect().get(0), isReference("name"));
@@ -251,10 +251,10 @@ public class NestedLoopConsumerTest extends CrateUnitTest {
     @Test
     public void testNodePageSizePushDown() throws Exception {
         NestedLoop plan = plan("select u1.name from users u1, users u2 order by 1 limit 1000");
-        RoutedCollectPhase cpL = ((RoutedCollectPhase) ((CollectAndMerge) plan.left()).collectPhase());
+        RoutedCollectPhase cpL = ((RoutedCollectPhase) ((Collect) plan.left()).collectPhase());
         assertThat(cpL.nodePageSizeHint(), is(750));
 
-        RoutedCollectPhase cpR = ((RoutedCollectPhase) ((CollectAndMerge) plan.right()).collectPhase());
+        RoutedCollectPhase cpR = ((RoutedCollectPhase) ((Collect) plan.right()).collectPhase());
         assertThat(cpR.nodePageSizeHint(), is(750));
     }
 
@@ -305,9 +305,9 @@ public class NestedLoopConsumerTest extends CrateUnitTest {
     @Test
     public void testRefsAreNotConvertedToSourceLookups() throws Exception {
         NestedLoop nl = plan("select u1.name from users u1, users u2 where u1.id = u2.id order by 1");
-        CollectPhase cpLeft = ((CollectAndMerge) nl.left()).collectPhase();
+        CollectPhase cpLeft = ((Collect) nl.left()).collectPhase();
         assertThat(cpLeft.toCollect(), contains(isReference("id"), isReference("name")));
-        CollectPhase cpRight = ((CollectAndMerge) nl.right()).collectPhase();
+        CollectPhase cpRight = ((Collect) nl.right()).collectPhase();
         assertThat(cpRight.toCollect(), contains(isReference("id")));
     }
 

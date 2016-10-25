@@ -39,9 +39,10 @@ import io.crate.exceptions.UnsupportedFeatureException;
 import io.crate.exceptions.VersionInvalidException;
 import io.crate.operation.predicate.MatchPredicate;
 import io.crate.planner.Limits;
+import io.crate.planner.Merge;
 import io.crate.planner.Plan;
 import io.crate.planner.Planner;
-import io.crate.planner.node.dql.CollectAndMerge;
+import io.crate.planner.node.dql.Collect;
 import io.crate.planner.node.dql.MergePhase;
 import io.crate.planner.node.dql.RoutedCollectPhase;
 import io.crate.planner.projection.Projection;
@@ -194,7 +195,11 @@ public class QueryAndFetchConsumer implements Consumer {
             }
             SimpleSelect.enablePagingIfApplicable(
                 collectPhase, mergeNode, limits.finalLimit(), limits.offset(), plannerContext.clusterService().localNode().id());
-            return new CollectAndMerge(collectPhase, mergeNode);
+            Collect collect = new Collect(collectPhase);
+            if (mergeNode == null) {
+                return collect;
+            }
+            return new Merge(collect, mergeNode);
         }
     }
 }

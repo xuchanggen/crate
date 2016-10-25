@@ -36,6 +36,6 @@ public abstract class UnnestablePlan implements Plan {
 
     @Override
     public ResultDescription resultDescription() {
-        throw new UnsupportedOperationException("resultDescription() is not supported on" + getClass().getSimpleName());
+        return ResultDescription.HANDLER_ROW_COUNT;
     }
 }

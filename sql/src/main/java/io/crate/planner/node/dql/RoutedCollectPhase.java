@@ -45,7 +45,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * A plan node which collects data.
@@ -197,9 +200,11 @@ public class RoutedCollectPhase extends AbstractProjectionsPhase implements Coll
     }
 
     @Override
-    public List<Symbol> outputs() {
-        // TODO:
-        return Collections.emptyList();
+    public List<? extends Symbol> outputs() {
+        if (projections.size() == 0) {
+            return toCollect;
+        }
+        return projections.get(projections.size() - 1).outputs();
     }
 
     public void orderBy(@Nullable OrderBy orderBy) {

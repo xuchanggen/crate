@@ -267,5 +267,12 @@ public class PlanPrinter {
                 .put("rootPlan", toMap(multiPhasePlan.rootPlan()))
                 .put("dependencies", dependencies);
         }
+
+        @Override
+        public ImmutableMap.Builder<String, Object> visitMerge(Merge merge, Void context) {
+            return visitPlan(merge, context)
+                .put("subPlan", toMap(merge.subPlan()))
+                .put("mergePhase", phaseMap(merge.mergePhase()));
+        }
     }
 }

@@ -72,5 +72,5 @@ public interface ResultDescription {
     @Nullable
     OrderBy orderBy();
 
-    List<Symbol> outputs();
+    List<? extends Symbol> outputs();
 }

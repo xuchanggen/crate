@@ -127,4 +127,8 @@ public class PlanVisitor<C, R> {
     public R visitMultiPhasePlan(MultiPhasePlan multiPhasePlan, C context) {
         return visitPlan(multiPhasePlan, context);
     }
+
+    public R visitMerge(Merge merge, C context) {
+        return visitPlan(merge, context);
+    }
 }

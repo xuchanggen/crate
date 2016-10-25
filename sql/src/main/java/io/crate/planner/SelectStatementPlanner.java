@@ -22,6 +22,7 @@
 
 package io.crate.planner;
 
+import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import io.crate.analyze.*;
@@ -49,8 +50,6 @@ import io.crate.planner.node.fetch.FetchPhase;
 import io.crate.planner.node.fetch.FetchSource;
 import io.crate.planner.projection.FetchProjection;
 import io.crate.planner.projection.Projection;
-import io.crate.planner.projection.TopNProjection;
-import io.crate.planner.projection.builder.ProjectionBuilder;
 import io.crate.sql.tree.QualifiedName;
 
 import java.util.ArrayList;
@@ -121,7 +120,8 @@ class SelectStatementPlanner {
             if (querySpec.where().noMatch() || (querySpec.limit().isPresent() && limits.finalLimit() == 0)) {
                 return new NoopPlan(context.jobId());
             }
-            table.tableRelation().validateOrderBy(querySpec.orderBy());
+            Optional<OrderBy> optOrderBy = querySpec.orderBy();
+            table.tableRelation().validateOrderBy(optOrderBy);
 
             FetchPushDown fetchPushDown = new FetchPushDown(querySpec, table.tableRelation());
             QueriedDocTable subRelation = fetchPushDown.pushDown();
@@ -150,9 +150,8 @@ class SelectStatementPlanner {
             FetchProjection fp = createFetchProjection(
                 table, querySpec, fetchPushDown, readerAllocations, fetchPhase, context.fetchSize());
 
-            MergePhase localMergePhase;
-            assert qaf.localMerge() == null : "subRelation shouldn't plan localMerge";
-
+            Plan plan = Merge.mergeToHandler(qaf, context);
+            /*
             TopNProjection topN = ProjectionBuilder.topNProjection(
                 collectPhase.toCollect(),
                 null, // orderBy = null because stuff is pre-sorted in collectPhase and sortedLocalMerge is used
@@ -160,31 +159,14 @@ class SelectStatementPlanner {
                 limits.finalLimit,
                 null
             );
-            if (!querySpec.orderBy().isPresent()) {
-                localMergePhase = MergePhase.localMerge(
-                    context.jobId(),
-                    context.nextExecutionPhaseId(),
-                    ImmutableList.of(topN, fp),
-                    collectPhase.executionNodes().size(),
-                    collectPhase.outputTypes()
-                );
-            } else {
-                localMergePhase = MergePhase.sortedMerge(
-                    context.jobId(),
-                    context.nextExecutionPhaseId(),
-                    querySpec.orderBy().get(),
-                    collectPhase.toCollect(),
-                    null,
-                    ImmutableList.of(topN, fp),
-                    collectPhase.executionNodes().size(),
-                    collectPhase.outputTypes()
-                );
-            }
+            */
+            //plan.addProjection(topN);
+            plan.addProjection(fp);
             SimpleSelect.enablePagingIfApplicable(
-                collectPhase, localMergePhase, limits.finalLimit(), limits.offset(),
+                collectPhase, null, limits.finalLimit(), limits.offset(),
                 context.clusterService().localNode().id());
             QueryThenFetch queryThenFetch = new QueryThenFetch(
-                plannedSubQuery, fetchPhase, localMergePhase, context.jobId());
+                plan, fetchPhase, null, context.jobId());
             return MultiPhasePlan.createIfNeeded(queryThenFetch, subQueries);
         }
 

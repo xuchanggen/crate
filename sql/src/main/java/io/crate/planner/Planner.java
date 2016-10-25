@@ -57,6 +57,8 @@ import io.crate.types.DataTypes;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Singleton;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 
 import javax.annotation.Nullable;
@@ -65,6 +67,8 @@ import java.util.*;
 
 @Singleton
 public class Planner extends AnalyzedStatementVisitor<Planner.Context, Plan> {
+
+    private final static ESLogger LOGGER = Loggers.getLogger(Planner.class);
 
     private final ConsumingPlanner consumingPlanner;
     private final ClusterService clusterService;
@@ -396,8 +400,14 @@ public class Planner extends AnalyzedStatementVisitor<Planner.Context, Plan> {
      */
     public Plan plan(Analysis analysis, UUID jobId, int softLimit, int fetchSize) {
         AnalyzedStatement analyzedStatement = analysis.analyzedStatement();
-        return process(analyzedStatement, new Context(this,
-            clusterService, jobId, consumingPlanner, normalizer, analysis.transactionContext(), softLimit, fetchSize));
+        Context context = new Context(this,
+            clusterService, jobId, consumingPlanner, normalizer, analysis.transactionContext(), softLimit, fetchSize);
+        Plan plan = process(analyzedStatement, context);
+        plan = Merge.mergeToHandler(plan, context);
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("Plan: {}", PlanPrinter.objectMap(plan));
+        }
+        return plan;
     }
 
     @Override

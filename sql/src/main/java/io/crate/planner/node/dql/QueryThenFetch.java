@@ -75,6 +75,9 @@ public class QueryThenFetch implements Plan {
 
     @Override
     public ResultDescription resultDescription() {
+        if (localMerge == null) {
+            return subPlan.resultDescription();
+        }
         return localMerge;
     }
 }

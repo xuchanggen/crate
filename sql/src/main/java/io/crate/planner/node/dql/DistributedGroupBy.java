@@ -26,21 +26,18 @@ import io.crate.planner.PlanVisitor;
 import io.crate.planner.ResultDescription;
 import io.crate.planner.projection.Projection;
 
-import javax.annotation.Nullable;
 import java.util.UUID;
 
 public class DistributedGroupBy implements Plan {
 
     private final RoutedCollectPhase collectNode;
     private final MergePhase reducerMergeNode;
-    private MergePhase localMergeNode;
     private final UUID id;
 
-    public DistributedGroupBy(RoutedCollectPhase collectNode, MergePhase reducerMergeNode, @Nullable MergePhase localMergeNode, UUID id) {
+    public DistributedGroupBy(RoutedCollectPhase collectNode, MergePhase reducerMergeNode) {
+        this.id = collectNode.jobId();
         this.collectNode = collectNode;
         this.reducerMergeNode = reducerMergeNode;
-        this.localMergeNode = localMergeNode;
-        this.id = id;
     }
 
     @Override
@@ -61,24 +58,13 @@ public class DistributedGroupBy implements Plan {
         return reducerMergeNode;
     }
 
-    public MergePhase localMergeNode() {
-        return localMergeNode;
-    }
-
     @Override
     public void addProjection(Projection projection) {
-        if (localMergeNode != null) {
-            localMergeNode.addProjection(projection);
-        } else {
-            reducerMergeNode.addProjection(projection);
-        }
+        reducerMergeNode.addProjection(projection);
     }
 
     @Override
     public ResultDescription resultDescription() {
-        if (localMergeNode == null) {
-            return reducerMergeNode;
-        }
-        return localMergeNode;
+        return reducerMergeNode;
     }
 }

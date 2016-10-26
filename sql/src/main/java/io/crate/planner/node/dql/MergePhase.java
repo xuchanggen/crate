@@ -139,6 +139,19 @@ public class MergePhase extends AbstractProjectionsPhase implements UpstreamPhas
         return mergeNode;
     }
 
+    public static MergePhase handlerMergeWithTopN(UUID jobId,
+                                                  int phaseId,
+                                                  Collection<String> executionNodes,
+                                                  int numUpstreams,
+                                                  List<DataType> inputTypes,
+                                                  int limit,
+                                                  int offset,
+                                                  @Nullable int[] orderByIndices,
+                                                  @Nullable boolean[] reverseFlags,
+                                                  @Nullable Boolean[] nullsFirst) {
+
+    }
+
     public static MergePhase handlerMerge(UUID jobId,
                                           int phaseId,
                                           Collection<String> executionNodes,

@@ -110,7 +110,6 @@ public class QueryAndFetchConsumer implements Consumer {
             Optional<OrderBy> optOrderBy = querySpec.orderBy();
             Planner.Context plannerContext = context.plannerContext();
             RoutedCollectPhase collectPhase;
-            MergePhase mergePhase = null;
 
             Limits limits = plannerContext.getLimits(querySpec);
             /*
@@ -144,7 +143,10 @@ public class QueryAndFetchConsumer implements Consumer {
             );
             collectPhase.orderBy(optOrderBy.orNull());
 
+            Collect collect = new Collect(collectPhase);
             if (limits.hasLimit()) {
+                MergePhase mergePhase
+                Merge.mergeToHandler(collect, mergePhase);
                 TopNProjection mergeTopN = new TopNProjection(limits.finalLimit(), limits.offset());
                 if (optOrderBy.isPresent()) {
                     OrderBy orderBy = optOrderBy.get();
@@ -170,7 +172,6 @@ public class QueryAndFetchConsumer implements Consumer {
                     mergeTopN.outputs(allOutputs);
                 }
             }
-            Collect collect = new Collect(collectPhase);
             if (mergePhase == null) {
                 return collect;
             }

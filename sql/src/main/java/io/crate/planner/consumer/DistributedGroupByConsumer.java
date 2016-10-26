@@ -24,7 +24,6 @@ package io.crate.planner.consumer;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 import io.crate.analyze.HavingClause;
 import io.crate.analyze.QuerySpec;
 import io.crate.analyze.relations.AnalyzedRelation;
@@ -36,10 +35,7 @@ import io.crate.metadata.Functions;
 import io.crate.metadata.Routing;
 import io.crate.metadata.RowGranularity;
 import io.crate.metadata.doc.DocTableInfo;
-import io.crate.planner.Limits;
-import io.crate.planner.NoopPlan;
-import io.crate.planner.Plan;
-import io.crate.planner.Planner;
+import io.crate.planner.*;
 import io.crate.planner.distribution.DistributionInfo;
 import io.crate.planner.node.dql.DistributedGroupBy;
 import io.crate.planner.node.dql.GroupByConsumer;
@@ -47,7 +43,6 @@ import io.crate.planner.node.dql.MergePhase;
 import io.crate.planner.node.dql.RoutedCollectPhase;
 import io.crate.planner.projection.GroupProjection;
 import io.crate.planner.projection.Projection;
-import io.crate.planner.projection.TopNProjection;
 import io.crate.planner.projection.builder.ProjectionBuilder;
 import io.crate.planner.projection.builder.SplitPoints;
 import org.elasticsearch.common.inject.Singleton;
@@ -106,7 +101,7 @@ class DistributedGroupByConsumer implements Consumer {
 
             Planner.Context plannerContext = context.plannerContext();
             Routing routing = plannerContext.allocateRouting(tableInfo, querySpec.where(), null);
-            RoutedCollectPhase collectNode = new RoutedCollectPhase(
+            RoutedCollectPhase collectPhase = new RoutedCollectPhase(
                 plannerContext.jobId(),
                 plannerContext.nextExecutionPhaseId(),
                 "distributing collect",
@@ -149,53 +144,24 @@ class DistributedGroupByConsumer implements Consumer {
                 }
             }
 
-            Limits limits = plannerContext.getLimits(querySpec);
-            boolean isRootRelation = context.rootRelation() == table;
-            if (isRootRelation) {
-                reducerProjections.add(ProjectionBuilder.topNProjection(
-                    collectOutputs,
-                    querySpec.orderBy().orNull(),
-                    0,
-                    limits.limitAndOffset(),
-                    querySpec.outputs()));
-            }
-
             MergePhase mergePhase = new MergePhase(
                 plannerContext.jobId(),
                 plannerContext.nextExecutionPhaseId(),
                 "distributed merge",
-                collectNode.executionNodes().size(),
-                collectNode.outputTypes(),
+                collectPhase.executionNodes().size(),
+                collectPhase.outputTypes(),
                 reducerProjections,
                 DistributionInfo.DEFAULT_BROADCAST
             );
-            mergePhase.executionNodes(ImmutableSet.copyOf(collectNode.executionNodes()));
+            mergePhase.executionNodes(ImmutableSet.copyOf(collectPhase.executionNodes()));
             // end: Reducer
 
-            MergePhase localMergeNode = null;
-            String localNodeId = plannerContext.clusterService().state().nodes().localNodeId();
-            if (isRootRelation) {
-                TopNProjection topN = ProjectionBuilder.topNProjection(
-                    querySpec.outputs(),
-                    querySpec.orderBy().orNull(),
-                    limits.offset(),
-                    limits.finalLimit(),
-                    null);
-                localMergeNode = MergePhase.localMerge(
-                    plannerContext.jobId(),
-                    plannerContext.nextExecutionPhaseId(),
-                    ImmutableList.<Projection>of(topN),
-                    mergePhase.executionNodes().size(),
-                    mergePhase.outputTypes());
-                localMergeNode.executionNodes(Sets.newHashSet(localNodeId));
+            DistributedGroupBy distributedGroupBy = new DistributedGroupBy(collectPhase, mergePhase);
+            Limits limits = plannerContext.getLimits(querySpec);
+            if (limits.hasLimit()) {
+                return new Merge(distributedGroupBy, )
             }
-
-            return new DistributedGroupBy(
-                collectNode,
-                mergePhase,
-                localMergeNode,
-                plannerContext.jobId()
-            );
+            return distributedGroupBy;
         }
     }
 }

@@ -403,9 +403,11 @@ public class PlannerTest extends AbstractPlannerTest {
         assertThat(topNProjection.limit(), is(TopN.NO_LIMIT));
         assertThat(topNProjection.offset(), is(0));
 
+        /*
         MergePhase mergeNode = planNode.localMergeNode();
         assertThat(mergeNode.projections().size(), is(1));
         assertThat(mergeNode.projections().get(0), instanceOf(TopNProjection.class));
+        */
     }
 
     @Test

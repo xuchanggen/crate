@@ -35,6 +35,7 @@ import io.crate.planner.distribution.DistributionInfo;
 import io.crate.planner.distribution.UpstreamPhase;
 import io.crate.planner.node.ExecutionPhaseVisitor;
 import io.crate.planner.projection.Projection;
+import io.crate.planner.projection.TopNProjection;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -91,6 +92,7 @@ public class MergePhase extends AbstractProjectionsPhase implements UpstreamPhas
         }
     }
 
+    @Deprecated // TODO: unify
     public static MergePhase localMerge(UUID jobId,
                                         int executionPhaseId,
                                         List<Projection> projections,
@@ -107,6 +109,7 @@ public class MergePhase extends AbstractProjectionsPhase implements UpstreamPhas
         );
     }
 
+    @Deprecated // TODO: unify
     public static MergePhase sortedMerge(UUID jobId,
                                          int executionPhaseId,
                                          OrderBy orderBy,
@@ -146,10 +149,29 @@ public class MergePhase extends AbstractProjectionsPhase implements UpstreamPhas
                                                   List<DataType> inputTypes,
                                                   int limit,
                                                   int offset,
+                                                  List<Symbol> topNOutputs,
                                                   @Nullable int[] orderByIndices,
                                                   @Nullable boolean[] reverseFlags,
                                                   @Nullable Boolean[] nullsFirst) {
-
+        TopNProjection topN = new TopNProjection(limit, offset);
+        topN.outputs(topNOutputs);
+        MergePhase mergePhase = new MergePhase(
+            jobId,
+            phaseId,
+            "localMerge",
+            numUpstreams,
+            inputTypes,
+            Collections.<Projection>singletonList(topN),
+            DistributionInfo.DEFAULT_SAME_NODE
+        );
+        mergePhase.executionNodes = executionNodes;
+        if (orderByIndices != null) {
+            mergePhase.sortedInputOutput = true;
+            mergePhase.orderByIndices = orderByIndices;
+            mergePhase.reverseFlags = reverseFlags;
+            mergePhase.nullsFirst = nullsFirst;
+        }
+        return mergePhase;
     }
 
     public static MergePhase handlerMerge(UUID jobId,
@@ -189,6 +211,7 @@ public class MergePhase extends AbstractProjectionsPhase implements UpstreamPhas
      * @param orderBySymbols Can be used to override orderBySymbols of {@param orderBy}
      * @param inputTypes Can be used if available to avoid extracting them again from {@param inputs}
      */
+    @Deprecated // TODO: unify
     public static MergePhase mergePhase(Planner.Context plannerContext,
                                         Collection<String> executionNodes,
                                         int upstreamPhaseExecutionNodesSize,

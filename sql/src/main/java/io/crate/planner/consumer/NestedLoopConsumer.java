@@ -286,6 +286,7 @@ class NestedLoopConsumer implements Consumer {
                 left.querySpec().outputs().size(),
                 right.querySpec().outputs().size()
             );
+            // TODO: if limit is present it needs to be applied
             return new NestedLoop(nl, leftPlan, rightPlan);
         }
 

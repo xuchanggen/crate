@@ -39,9 +39,9 @@ import io.crate.planner.Plan;
  *
  *      NODE1      NODE2
  *       CP         CP
- *        |         |
- *        |         |
- *        |         |
+ *        |__      /|
+ *        |  \____/ |
+ *        |_/    \__|
  *       MP         MP      <--- Merge Phase / Reduce Phase
  *                               Result is "complete" here - so a consumer should stop planning here
  * </pre>

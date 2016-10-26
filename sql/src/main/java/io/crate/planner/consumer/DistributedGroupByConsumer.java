@@ -129,7 +129,6 @@ class DistributedGroupByConsumer implements Consumer {
                 Aggregation.Step.PARTIAL,
                 Aggregation.Step.FINAL)
             );
-
             table.tableRelation().validateOrderBy(querySpec.orderBy());
 
             Optional<HavingClause> havingClause = querySpec.having();
@@ -158,8 +157,9 @@ class DistributedGroupByConsumer implements Consumer {
 
             DistributedGroupBy distributedGroupBy = new DistributedGroupBy(collectPhase, mergePhase);
             Limits limits = plannerContext.getLimits(querySpec);
-            if (limits.hasLimit()) {
-                return new Merge(distributedGroupBy, )
+            if (limits.hasLimit() || querySpec.orderBy().isPresent()) {
+                // TODO: need to actually apply limit & order By
+                return Merge.mergeToHandler(distributedGroupBy, plannerContext);
             }
             return distributedGroupBy;
         }

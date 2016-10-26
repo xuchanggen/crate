@@ -505,7 +505,6 @@ public class TransportExecutor implements Executor {
 
         @Override
         public Void visitDistributedGroupBy(DistributedGroupBy node, NodeOperationTreeContext context) {
-            context.addPhase(node.localMergeNode());
             context.addPhase(node.reducerMergeNode());
             context.addCollectExecutionPhase(node.collectNode());
             return null;

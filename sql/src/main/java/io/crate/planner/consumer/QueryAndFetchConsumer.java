@@ -73,7 +73,7 @@ public class QueryAndFetchConsumer implements Consumer {
                 context.validationException(new VersionInvalidException());
                 return null;
             }
-            return normalSelect(table, context, table.querySpec().outputs());
+            return normalSelect(table, context);
         }
 
         @Override
@@ -85,7 +85,7 @@ public class QueryAndFetchConsumer implements Consumer {
             if (querySpec.where().hasQuery()) {
                 ensureNoLuceneOnlyPredicates(querySpec.where().query());
             }
-            return normalSelect(table, context, querySpec.outputs());
+            return normalSelect(table, context);
         }
 
         private void ensureNoLuceneOnlyPredicates(Symbol query) {
@@ -105,37 +105,30 @@ public class QueryAndFetchConsumer implements Consumer {
             }
         }
 
-        private Plan normalSelect(QueriedTableRelation table, ConsumerContext context, List<Symbol> outputSymbols) {
+        private Plan normalSelect(QueriedTableRelation table, ConsumerContext context) {
             QuerySpec querySpec = table.querySpec();
-            Optional<OrderBy> optOrderBy = querySpec.orderBy();
             Planner.Context plannerContext = context.plannerContext();
-            RoutedCollectPhase collectPhase;
-
-            Limits limits = plannerContext.getLimits(querySpec);
             /*
              * ORDER BY columns are added to OUTPUTS - they're required to do an ordered merge.
              * select id, name, order by id, date
              *
-             * toCollect:       [id, name, date]            // includes order by symbols, that aren't already selected
-             * allOutputs:      [in(0), in(1), in(2)]       // for topN projection on shards/collectPhase
-             * orderByInputs:   [in(0), in(2)]              // for topN projection on shards/collectPhase AND handler
-             * finalOutputs:    [in(0), in(1)]              // for topN output on handler -> changes output to what should be returned.
+             * toCollect:           [id, name, date]       // includes order by symbols, that aren't already selected
+             * outputsInclOrder:    [in(0), in(1), in(2)]  // for topN projection on shards/collectPhase
+             * orderByInputs:       [in(0), in(2)]         // for topN projection on shards/collectPhase AND handler
+             * finalOutputs:        [in(0), in(1)]         // for topN output on handler -> changes output to what should be returned.
              */
+            List<Symbol> qsOutputs = querySpec.outputs();
             List<Symbol> toCollect;
+            Optional<OrderBy> optOrderBy = querySpec.orderBy();
             if (optOrderBy.isPresent()) {
-                toCollect = Lists2.concatUnique(outputSymbols, optOrderBy.get().orderBySymbols());
+                toCollect = Lists2.concatUnique(qsOutputs, optOrderBy.get().orderBySymbols());
             } else {
-                toCollect = outputSymbols;
+                toCollect = qsOutputs;
             }
-            List<Symbol> allOutputs = InputColumn.fromSymbols(toCollect);
+            List<Symbol> outputsInclOrder = InputColumn.fromSymbols(toCollect);
 
             List<Projection> projections = ImmutableList.of();
-            if (limits.hasLimit()) {
-                TopNProjection collectTopN = new TopNProjection(limits.limitAndOffset(), 0);
-                collectTopN.outputs(allOutputs);
-                projections = ImmutableList.<Projection>of(collectTopN);
-            }
-            collectPhase = RoutedCollectPhase.forQueriedTable(
+            RoutedCollectPhase collectPhase = RoutedCollectPhase.forQueriedTable(
                 plannerContext,
                 table,
                 toCollect,
@@ -144,38 +137,38 @@ public class QueryAndFetchConsumer implements Consumer {
             collectPhase.orderBy(optOrderBy.orNull());
 
             Collect collect = new Collect(collectPhase);
+            Limits limits = plannerContext.getLimits(querySpec);
             if (limits.hasLimit()) {
-                MergePhase mergePhase
-                Merge.mergeToHandler(collect, mergePhase);
-                TopNProjection mergeTopN = new TopNProjection(limits.finalLimit(), limits.offset());
+                TopNProjection collectTopN = new TopNProjection(limits.limitAndOffset(), 0);
+                collectTopN.outputs(outputsInclOrder);
+                collectPhase.addProjection(collectTopN);
+
+                int[] orderByIndices = null;
+                boolean[] reverseFlags = null;
+                Boolean[] nullsFirst = null;
                 if (optOrderBy.isPresent()) {
                     OrderBy orderBy = optOrderBy.get();
-                    List<Symbol> finalOutputs = InputColumn.fromSymbols(outputSymbols);
-                    mergeTopN.outputs(finalOutputs);
-                    mergePhase = MergePhase.sortedMerge(
-                        plannerContext.jobId(),
-                        plannerContext.nextExecutionPhaseId(),
-                        orderBy,
-                        allOutputs,
-                        InputColumn.fromSymbols(orderBy.orderBySymbols(), collectPhase.toCollect()),
-                        Collections.<Projection>singletonList(mergeTopN),
-                        collectPhase.executionNodes().size(),
-                        Symbols.extractTypes(allOutputs));
-                } else {
-                    mergePhase = MergePhase.localMerge(
-                        plannerContext.jobId(),
-                        plannerContext.nextExecutionPhaseId(),
-                        Collections.<Projection>singletonList(mergeTopN),
-                        collectPhase.executionNodes().size(),
-                        Symbols.extractTypes(allOutputs)
-                    );
-                    mergeTopN.outputs(allOutputs);
+                    orderByIndices = OrderByPositionVisitor.orderByPositions(orderBy.orderBySymbols(), toCollect);
+                    reverseFlags = orderBy.reverseFlags();
+                    nullsFirst = orderBy.nullsFirst();
                 }
+                // TODO: should be able to use Merge.mergeToHandler here?
+                MergePhase mergePhase = MergePhase.handlerMergeWithTopN(
+                    plannerContext.jobId(),
+                    plannerContext.nextExecutionPhaseId(),
+                    Collections.singletonList(plannerContext.handlerNode()),
+                    collectPhase.executionNodes().size(),
+                    Symbols.extractTypes(outputsInclOrder),
+                    limits.finalLimit(),
+                    limits.offset(),
+                    InputColumn.fromSymbols(qsOutputs),
+                    orderByIndices,
+                    reverseFlags,
+                    nullsFirst
+                );
+                return new Merge(collect, mergePhase);
             }
-            if (mergePhase == null) {
-                return collect;
-            }
-            return new Merge(collect, mergePhase);
+            return collect;
         }
     }
 }

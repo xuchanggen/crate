@@ -103,7 +103,6 @@ class SubSelectSymbolReplacer implements FutureCallback<Object> {
         @Override
         public Void visitDistributedGroupBy(DistributedGroupBy node, SymbolReplacer replacer) {
             node.collectNode().replaceSymbols(replacer);
-            process(node.localMergeNode(), replacer);
             process(node.reducerMergeNode(), replacer);
             return null;
         }

@@ -22,6 +22,7 @@
 package io.crate.planner.node.dql;
 
 import com.google.common.base.Function;
+import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableSet;
 import io.crate.analyze.EvaluatingNormalizer;
 import io.crate.analyze.OrderBy;
@@ -37,9 +38,11 @@ import io.crate.metadata.TransactionContext;
 import io.crate.metadata.table.TableInfo;
 import io.crate.operation.Paging;
 import io.crate.planner.Planner;
+import io.crate.planner.consumer.OrderByPositionVisitor;
 import io.crate.planner.distribution.DistributionInfo;
 import io.crate.planner.node.ExecutionPhaseVisitor;
 import io.crate.planner.projection.Projection;
+import io.crate.types.DataType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -139,6 +142,43 @@ public class RoutedCollectPhase extends AbstractProjectionsPhase implements Coll
     @Override
     public void distributionInfo(DistributionInfo distributionInfo) {
         this.distributionInfo = distributionInfo;
+    }
+
+    @Override
+    public List<DataType> streamedTypes() {
+        Optional<Projection> finalProjection = finalProjection();
+        if (finalProjection.isPresent()) {
+            return Symbols.extractTypes(finalProjection.get().outputs());
+        }
+        return Symbols.extractTypes(toCollect);
+    }
+
+    @Nullable
+    @Override
+    public int[] orderByIndices() {
+        if (orderBy == null) {
+            return null;
+        }
+        // TODO: this is wrong if projections change the ordering of the columns
+        return OrderByPositionVisitor.orderByPositions(orderBy.orderBySymbols(), toCollect);
+    }
+
+    @Nullable
+    @Override
+    public boolean[] reverseFlags() {
+        if (orderBy == null) {
+            return null;
+        }
+        return orderBy.reverseFlags();
+    }
+
+    @Nullable
+    @Override
+    public Boolean[] nullsFirst() {
+        if (orderBy == null) {
+            return null;
+        }
+        return orderBy.nullsFirst();
     }
 
     /**

@@ -28,30 +28,22 @@ import io.crate.planner.ResultDescription;
 import io.crate.planner.node.fetch.FetchPhase;
 import io.crate.planner.projection.Projection;
 
-import javax.annotation.Nullable;
 import java.util.UUID;
 
 public class QueryThenFetch implements Plan {
 
     private final FetchPhase fetchPhase;
     private final Plan subPlan;
-    private final MergePhase localMerge;
     private final UUID id;
 
-    public QueryThenFetch(Plan subPlan, FetchPhase fetchPhase, @Nullable MergePhase localMerge, UUID id) {
+    public QueryThenFetch(Plan subPlan, FetchPhase fetchPhase) {
         this.subPlan = subPlan;
+        this.id = subPlan.jobId();
         this.fetchPhase = fetchPhase;
-        this.localMerge = localMerge;
-        this.id = id;
     }
 
     public FetchPhase fetchPhase() {
         return fetchPhase;
-    }
-
-    @Nullable
-    public MergePhase localMerge() {
-        return localMerge;
     }
 
     public Plan subPlan() {
@@ -75,6 +67,6 @@ public class QueryThenFetch implements Plan {
 
     @Override
     public ResultDescription resultDescription() {
-        return localMerge;
+        return subPlan.resultDescription();
     }
 }

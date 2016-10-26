@@ -23,11 +23,8 @@ package io.crate.planner.node.dql.join;
 import io.crate.planner.Plan;
 import io.crate.planner.PlanVisitor;
 import io.crate.planner.ResultDescription;
-import io.crate.planner.node.dql.MergePhase;
 import io.crate.planner.projection.Projection;
 
-import javax.annotation.Nullable;
-import java.util.Collection;
 import java.util.UUID;
 
 /**
@@ -60,10 +57,6 @@ public class NestedLoop implements Plan {
     private final NestedLoopPhase nestedLoopPhase;
     private final UUID jobId;
 
-    @Nullable
-    private final MergePhase localMerge;
-    private final boolean resultIsDistributed;
-
     /**
      * create a new NestedLoop
      * <p>
@@ -90,17 +83,11 @@ public class NestedLoop implements Plan {
      * a | 3
      * b | 3
      */
-    public NestedLoop(NestedLoopPhase nestedLoopPhase,
-                      Plan left,
-                      Plan right,
-                      @Nullable MergePhase localMerge,
-                      Collection<String> handlerNodes) {
+    public NestedLoop(NestedLoopPhase nestedLoopPhase, Plan left, Plan right) {
         this.jobId = nestedLoopPhase.jobId();
         this.left = left;
         this.right = right;
         this.nestedLoopPhase = nestedLoopPhase;
-        this.localMerge = localMerge;
-        this.resultIsDistributed = localMerge == null && !nestedLoopPhase.executionNodes().equals(handlerNodes);
     }
 
     public Plan left() {
@@ -117,19 +104,12 @@ public class NestedLoop implements Plan {
 
     @Override
     public void addProjection(Projection projection) {
-        if (localMerge != null) {
-            localMerge.addProjection(projection);
-        } else {
-            nestedLoopPhase.addProjection(projection);
-        }
+        nestedLoopPhase.addProjection(projection);
     }
 
     @Override
     public ResultDescription resultDescription() {
-        if (localMerge == null) {
-            return nestedLoopPhase;
-        }
-        return localMerge;
+        return nestedLoopPhase;
     }
 
     @Override
@@ -140,10 +120,5 @@ public class NestedLoop implements Plan {
     @Override
     public UUID jobId() {
         return jobId;
-    }
-
-    @Nullable
-    public MergePhase localMerge() {
-        return localMerge;
     }
 }

@@ -52,11 +52,7 @@ import io.crate.planner.distribution.DistributionType;
 import io.crate.planner.distribution.UpstreamPhase;
 import io.crate.planner.node.ExecutionPhase;
 import io.crate.planner.node.ExecutionPhases;
-import io.crate.planner.node.ddl.CreateAnalyzerPlan;
-import io.crate.planner.node.ddl.DropTablePlan;
-import io.crate.planner.node.ddl.ESClusterUpdateSettingsPlan;
-import io.crate.planner.node.ddl.ESDeletePartition;
-import io.crate.planner.node.ddl.GenericDDLPlan;
+import io.crate.planner.node.ddl.*;
 import io.crate.planner.node.dml.*;
 import io.crate.planner.node.dql.*;
 import io.crate.planner.node.dql.join.NestedLoop;
@@ -536,7 +532,6 @@ public class TransportExecutor implements Executor {
         }
 
         public Void visitQueryThenFetch(QueryThenFetch node, NodeOperationTreeContext context) {
-            context.addPhase(node.localMerge());
             process(node.subPlan(), context);
             context.addContextPhase(node.fetchPhase());
             return null;
@@ -544,7 +539,6 @@ public class TransportExecutor implements Executor {
 
         @Override
         public Void visitNestedLoop(NestedLoop plan, NodeOperationTreeContext context) {
-            context.addPhase(plan.localMerge());
             context.addPhase(plan.nestedLoopPhase());
 
             context.branch((byte) 0);

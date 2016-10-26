@@ -286,31 +286,7 @@ class NestedLoopConsumer implements Consumer {
                 left.querySpec().outputs().size(),
                 right.querySpec().outputs().size()
             );
-            MergePhase localMergePhase = null;
-            // TODO: build local merge phases somewhere else for any subplan
-            if (isDistributed && context.isRoot()) {
-                if (isMergePhaseNeeded(handlerNodes, nl.executionNodes(), true)) {
-                    localMergePhase = MergePhase.mergePhase(
-                        context.plannerContext(),
-                        handlerNodes,
-                        nl.executionNodes().size(),
-                        orderByBeforeSplit,
-                        null,
-                        ImmutableList.<Projection>of(),
-                        postNLOutputs,
-                        null);
-                }
-                assert localMergePhase != null : "local merge phase must not be null";
-                TopNProjection finalTopN = ProjectionBuilder.topNProjection(
-                    postNLOutputs,
-                    null, // orderBy = null because mergePhase receives data sorted
-                    limits.offset(),
-                    limits.finalLimit(),
-                    querySpec.outputs()
-                );
-                localMergePhase.addProjection(finalTopN);
-            }
-            return new NestedLoop(nl, leftPlan, rightPlan, localMergePhase, handlerNodes);
+            return new NestedLoop(nl, leftPlan, rightPlan);
         }
 
         private void addOutputsAndSymbolMap(Iterable<? extends Symbol> outputs,

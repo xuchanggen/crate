@@ -83,7 +83,6 @@ class SubSelectSymbolReplacer implements FutureCallback<Object> {
         @Override
         public Void visitQueryThenFetch(QueryThenFetch plan, SymbolReplacer replacer) {
             process(plan.subPlan(), replacer);
-            process(plan.localMerge(), replacer);
             // plan.fetchPhase() -> has only references - no selectSymbols
             return null;
         }
@@ -123,7 +122,6 @@ class SubSelectSymbolReplacer implements FutureCallback<Object> {
         public Void visitNestedLoop(NestedLoop plan, SymbolReplacer replacer) {
             process(plan.left(), replacer);
             process(plan.right(), replacer);
-            process(plan.localMerge(), replacer);
             plan.nestedLoopPhase().replaceSymbols(replacer);
             return null;
         }

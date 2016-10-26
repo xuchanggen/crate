@@ -22,6 +22,7 @@
 package io.crate.planner.node.dql;
 
 import com.google.common.base.MoreObjects;
+import com.google.common.base.Optional;
 import io.crate.analyze.EvaluatingNormalizer;
 import io.crate.analyze.symbol.Symbol;
 import io.crate.analyze.symbol.Symbols;
@@ -30,6 +31,7 @@ import io.crate.operation.collect.files.FileReadingCollector;
 import io.crate.planner.distribution.DistributionInfo;
 import io.crate.planner.node.ExecutionPhaseVisitor;
 import io.crate.planner.projection.Projection;
+import io.crate.types.DataType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -183,6 +185,33 @@ public class FileUriCollectPhase extends AbstractProjectionsPhase implements Col
     @Override
     public void distributionInfo(DistributionInfo distributionInfo) {
         this.distributionInfo = distributionInfo;
+    }
+
+    @Override
+    public List<DataType> streamedTypes() {
+        Optional<Projection> finalProjection = finalProjection();
+        if (finalProjection.isPresent()) {
+            return Symbols.extractTypes(finalProjection.get().outputs());
+        }
+        return Symbols.extractTypes(toCollect);
+    }
+
+    @Nullable
+    @Override
+    public int[] orderByIndices() {
+        return null;
+    }
+
+    @Nullable
+    @Override
+    public boolean[] reverseFlags() {
+        return null;
+    }
+
+    @Nullable
+    @Override
+    public Boolean[] nullsFirst() {
+        return null;
     }
 }
 

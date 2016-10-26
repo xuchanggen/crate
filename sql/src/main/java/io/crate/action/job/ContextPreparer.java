@@ -117,8 +117,11 @@ public class ContextPreparer extends AbstractComponent {
     public List<ListenableFuture<Bucket>> prepareOnRemote(Iterable<? extends NodeOperation> nodeOperations,
                                                           JobExecutionContext.Builder contextBuilder,
                                                           SharedShardContexts sharedShardContexts) {
-        PreparerContext preparerContext = initContext(nodeOperations, contextBuilder, sharedShardContexts);
-        logger.trace("prepareOnRemote: nodeOperations={}, targetSourceMap={}", nodeOperations, preparerContext.opCtx.targetToSourceMap);
+        ContextPreparer.PreparerContext preparerContext = new PreparerContext(
+            contextBuilder, logger, distributingDownstreamFactory, nodeOperations, sharedShardContexts);
+        registerContextPhases(nodeOperations, preparerContext);
+        logger.trace("prepareOnRemote: nodeOperations={}, targetSourceMap={}",
+            nodeOperations, preparerContext.opCtx.targetToSourceMap);
 
         for (IntCursor cursor : preparerContext.opCtx.findLeafs()) {
             prepareSourceOperations(cursor.value, preparerContext);
@@ -131,14 +134,18 @@ public class ContextPreparer extends AbstractComponent {
                                                            JobExecutionContext.Builder contextBuilder,
                                                            List<Tuple<ExecutionPhase, RowReceiver>> handlerPhases,
                                                            SharedShardContexts sharedShardContexts) {
-        PreparerContext preparerContext = initContext(nodeOperations, contextBuilder, sharedShardContexts);
+        ContextPreparer.PreparerContext preparerContext = new PreparerContext(
+            contextBuilder, logger, distributingDownstreamFactory, nodeOperations, sharedShardContexts);
+        for (Tuple<ExecutionPhase, RowReceiver> handlerPhase : handlerPhases) {
+            preparerContext.registerLeaf(handlerPhase.v1(), handlerPhase.v2());
+        }
+        registerContextPhases(nodeOperations, preparerContext);
         logger.trace("prepareOnHandler: nodeOperations={}, handlerPhases={}, targetSourceMap={}",
             nodeOperations, handlerPhases, preparerContext.opCtx.targetToSourceMap);
 
         IntHashSet leafs = new IntHashSet();
         for (Tuple<ExecutionPhase, RowReceiver> handlerPhase : handlerPhases) {
             ExecutionPhase phase = handlerPhase.v1();
-            preparerContext.handlerRowReceivers.put(phase.executionPhaseId(), handlerPhase.v2());
             createContexts(phase, preparerContext);
             leafs.add(phase.executionPhaseId());
         }
@@ -157,20 +164,23 @@ public class ContextPreparer extends AbstractComponent {
             throw new IllegalArgumentException(String.format(Locale.ENGLISH,
                 "Couldn't create executionContexts from%n" +
                 "NodeOperations: %s%n" +
+                "Leafs: %s%n" +
                 "target-sources: %s%n" +
-                "original-error: %s", preparerContext.opCtx.nodeOperationMap, preparerContext.opCtx.targetToSourceMap, t.getMessage()), t);
+                "original-error: %s",
+                preparerContext.opCtx.nodeOperationMap,
+                preparerContext.leafs,
+                preparerContext.opCtx.targetToSourceMap,
+                t.getMessage()),
+                t);
         }
     }
 
-    private PreparerContext initContext(Iterable<? extends NodeOperation> nodeOperations,
-                                        JobExecutionContext.Builder contextBuilder,
-                                        @Nullable SharedShardContexts sharedShardContexts) {
-        ContextPreparer.PreparerContext preparerContext = new PreparerContext(
-            contextBuilder, logger, distributingDownstreamFactory, nodeOperations, sharedShardContexts);
-
+    private void registerContextPhases(Iterable<? extends NodeOperation> nodeOperations,
+                                       PreparerContext preparerContext) {
         for (NodeOperation nodeOperation : nodeOperations) {
             // context for nodeOperations without dependencies can be built immediately (e.g. FetchPhase)
             if (nodeOperation.downstreamExecutionPhaseId() == NodeOperation.NO_DOWNSTREAM) {
+                logger.trace("Building context for nodeOp without downstream: {}", nodeOperation);
                 if (createContexts(nodeOperation.executionPhase(), preparerContext)) {
                     preparerContext.opCtx.builtNodeOperations.set(nodeOperation.executionPhase().executionPhaseId());
                 }
@@ -182,7 +192,6 @@ public class ContextPreparer extends AbstractComponent {
                 preparerContext.registerRowReceiver(nodeOperation.downstreamExecutionPhaseId(), bucketBuilder);
             }
         }
-        return preparerContext;
     }
 
     /**
@@ -314,6 +323,7 @@ public class ContextPreparer extends AbstractComponent {
         private final NodeOperationCtx opCtx;
         private final JobExecutionContext.Builder contextBuilder;
         private final ESLogger logger;
+        private List<ExecutionPhase> leafs = new ArrayList<>();
 
         PreparerContext(JobExecutionContext.Builder contextBuilder,
                         ESLogger logger,
@@ -409,6 +419,10 @@ public class ContextPreparer extends AbstractComponent {
             contextBuilder.addSubContext(subContext);
         }
 
+        void registerLeaf(ExecutionPhase phase, RowReceiver rowReceiver) {
+            handlerRowReceivers.put(phase.executionPhaseId(), rowReceiver);
+            leafs.add(phase);
+        }
     }
 
     private class InnerPreparer extends ExecutionPhaseVisitor<PreparerContext, Boolean> {
@@ -518,27 +532,34 @@ public class ContextPreparer extends AbstractComponent {
 
         @Override
         public Boolean visitFetchPhase(final FetchPhase phase, final PreparerContext context) {
-            final FluentIterable<Routing> routings = FluentIterable.from(context.opCtx.nodeOperationMap.values())
+            FluentIterable<ExecutionPhase> nodeOpPhases = FluentIterable.from(context.opCtx.nodeOperationMap.values())
                 .transform(new Function<NodeOperation, ExecutionPhase>() {
                     @Nullable
                     @Override
                     public ExecutionPhase apply(NodeOperation input) {
                         return input.executionPhase();
                     }
-                }).transform(new Function<ExecutionPhase, Routing>() {
-                    @Nullable
-                    @Override
-                    public Routing apply(@Nullable ExecutionPhase input) {
-                        if (input == null) {
+                });
+            Iterable<ExecutionPhase> phases = Iterables.concat(nodeOpPhases, context.leafs);
+            FluentIterable<Routing> routings = FluentIterable.from(phases)
+                .transform(
+                    new Function<ExecutionPhase, Routing>() {
+                        @Nullable
+                        @Override
+                        public Routing apply(@Nullable ExecutionPhase input) {
+                            if (input == null) {
+                                return null;
+                            }
+                            if (input instanceof RoutedCollectPhase) {
+                                return ((RoutedCollectPhase) input).routing();
+                            }
                             return null;
                         }
-                        if (input instanceof RoutedCollectPhase) {
-                            return ((RoutedCollectPhase) input).routing();
-                        }
-                        return null;
-                    }
-                }).filter(Predicates.notNull());
+                    }).filter(Predicates.notNull());
 
+            assert !routings.isEmpty()
+                : "Routings must be present. " +
+                  "It doesn't make sense to run a FetchPhase on a node without at least one CollectPhase";
             String localNodeId = clusterService.localNode().id();
             context.registerSubContext(new FetchContext(
                 phase,

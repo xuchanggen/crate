@@ -131,4 +131,9 @@ class InterceptingRowReceiver implements RowReceiver, FutureCallback<Void> {
                 });
         }
     }
+
+    @Override
+    public String toString() {
+        return "InterceptingRR{" + rowReceiver + '}';
+    }
 }

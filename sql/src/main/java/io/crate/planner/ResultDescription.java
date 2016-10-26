@@ -23,9 +23,13 @@
 package io.crate.planner;
 
 import io.crate.planner.distribution.DistributionInfo;
+import io.crate.types.DataType;
+import io.crate.types.DataTypes;
 
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 public interface ResultDescription {
 
@@ -44,6 +48,29 @@ public interface ResultDescription {
         public void distributionInfo(DistributionInfo distributionInfo) {
             throw new UnsupportedOperationException("Cannot overwrite distributionInfo of HANLDER_ROW_COUNT ResultDescription");
         }
+
+        @Override
+        public List<DataType> streamedTypes() {
+            return Collections.<DataType>singletonList(DataTypes.LONG);
+        }
+
+        @Nullable
+        @Override
+        public int[] orderByIndices() {
+            return null;
+        }
+
+        @Nullable
+        @Override
+        public boolean[] reverseFlags() {
+            return null;
+        }
+
+        @Nullable
+        @Override
+        public Boolean[] nullsFirst() {
+            return null;
+        }
     };
 
     Collection<String> executionNodes();
@@ -51,4 +78,12 @@ public interface ResultDescription {
     DistributionInfo distributionInfo();
 
     void distributionInfo(DistributionInfo distributionInfo);
+
+    List<DataType> streamedTypes();
+
+    @Nullable int[] orderByIndices();
+
+    @Nullable boolean[] reverseFlags();
+
+    @Nullable Boolean[] nullsFirst();
 }

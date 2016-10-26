@@ -21,9 +21,12 @@
 
 package io.crate.integrationtests;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import io.crate.action.sql.SQLActionException;
 import io.crate.testing.TestingHelpers;
 import io.crate.testing.UseJdbc;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.Locale;
@@ -33,6 +36,8 @@ import static org.hamcrest.core.Is.is;
 
 
 @UseJdbc
+@Seed("F76E57E18C3C2D62")
+@ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0)
 public class ArithmeticIntegrationTest extends SQLTransportIntegrationTest {
 
     @Test
@@ -192,6 +197,7 @@ public class ArithmeticIntegrationTest extends SQLTransportIntegrationTest {
     }
 
     @Test
+    @TestLogging("io.crate:TRACE")
     public void testNonIndexedColumnInRegexScalar() throws Exception {
         execute("create table regex_noindex (i integer, s string INDEX OFF) clustered into 3 shards with (number_of_replicas=0)");
         ensureYellow();

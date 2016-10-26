@@ -26,7 +26,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import io.crate.analyze.symbol.Symbol;
 import io.crate.analyze.symbol.Symbols;
-import io.crate.operation.projectors.RowReceiver;
 import io.crate.planner.ResultDescription;
 import io.crate.planner.distribution.DistributionInfo;
 import io.crate.planner.distribution.UpstreamPhase;
@@ -34,6 +33,7 @@ import io.crate.planner.node.ExecutionPhaseVisitor;
 import io.crate.planner.node.dql.AbstractProjectionsPhase;
 import io.crate.planner.node.dql.MergePhase;
 import io.crate.planner.projection.Projection;
+import io.crate.types.DataType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -228,5 +228,28 @@ public class NestedLoopPhase extends AbstractProjectionsPhase implements Upstrea
     @Override
     public void distributionInfo(DistributionInfo distributionInfo) {
         this.distributionInfo = distributionInfo;
+    }
+
+    @Override
+    public List<DataType> streamedTypes() {
+        return outputTypes;
+    }
+
+    @Nullable
+    @Override
+    public int[] orderByIndices() {
+        return null;
+    }
+
+    @Nullable
+    @Override
+    public boolean[] reverseFlags() {
+        return null;
+    }
+
+    @Nullable
+    @Override
+    public Boolean[] nullsFirst() {
+        return null;
     }
 }

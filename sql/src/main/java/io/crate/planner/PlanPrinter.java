@@ -235,11 +235,6 @@ public class PlanPrinter {
                 .put("left", process(plan.left(), context).build())
                 .put("right", process(plan.right(), context).build())
                 .put("nestedLoopPhase", phaseMap(plan.nestedLoopPhase()));
-
-            MergePhase mergePhase = plan.localMerge();
-            if (mergePhase != null) {
-                builder.put("localMerge", phaseMap(mergePhase));
-            }
             return builder;
         }
 
@@ -247,9 +242,6 @@ public class PlanPrinter {
         public ImmutableMap.Builder<String, Object> visitQueryThenFetch(QueryThenFetch plan, Void context) {
             ImmutableMap.Builder<String, Object> b = visitPlan(plan, context)
                 .put("subPlan", toMap(plan.subPlan()));
-            if (plan.localMerge() != null) {
-                b.put("localMerge", phaseMap(plan.localMerge()));
-            }
             b.put("fetchPhase", phaseMap(plan.fetchPhase()));
             return b;
         }

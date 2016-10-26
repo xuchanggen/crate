@@ -22,15 +22,36 @@
 
 package io.crate.planner;
 
+import io.crate.planner.node.ExecutionPhases;
 import io.crate.planner.node.dql.MergePhase;
 import io.crate.planner.projection.Projection;
 
+import java.util.Collections;
 import java.util.UUID;
 
 public class Merge implements Plan {
 
     private final Plan subPlan;
     private final MergePhase mergePhase;
+
+    public static Plan mergeToHandler(Plan subPlan, Planner.Context plannerContext) {
+        ResultDescription resultDescription = subPlan.resultDescription();
+        assert resultDescription != null : "all plans must have a result description. Plan without: " + subPlan;
+        if (!ExecutionPhases.isRemote(plannerContext.handlerNode(), resultDescription.executionNodes())) {
+            return subPlan;
+        }
+        MergePhase mergePhase = MergePhase.handlerMerge(
+            plannerContext.jobId(),
+            plannerContext.nextExecutionPhaseId(),
+            Collections.singletonList(plannerContext.handlerNode()),
+            resultDescription.executionNodes().size(),
+            resultDescription.streamedTypes(),
+            resultDescription.orderByIndices(),
+            resultDescription.reverseFlags(),
+            resultDescription.nullsFirst()
+        );
+        return new Merge(subPlan, mergePhase);
+    }
 
     public Merge(Plan subPlan, MergePhase mergePhase) {
         this.subPlan = subPlan;

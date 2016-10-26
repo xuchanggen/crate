@@ -139,11 +139,43 @@ public class MergePhase extends AbstractProjectionsPhase implements UpstreamPhas
         return mergeNode;
     }
 
+    public static MergePhase handlerMerge(UUID jobId,
+                                          int phaseId,
+                                          Collection<String> executionNodes,
+                                          int numUpstreams,
+                                          List<DataType> inputTypes,
+                                          @Nullable int[] orderByPositions,
+                                          @Nullable boolean[] reverseFlags,
+                                          @Nullable Boolean[] nullsFirst) {
+        assert (
+            (orderByPositions == null && reverseFlags == null && nullsFirst == null) ||
+            (orderByPositions != null && reverseFlags != null && nullsFirst != null))
+            : "Either all sorting information must be provided or none at all";
+
+        MergePhase mergePhase = new MergePhase(
+            jobId,
+            phaseId,
+            "localMerge",
+            numUpstreams,
+            inputTypes,
+            Collections.<Projection>emptyList(),
+            DistributionInfo.DEFAULT_SAME_NODE
+        );
+        mergePhase.executionNodes = executionNodes;
+        if (orderByPositions != null) {
+            mergePhase.sortedInputOutput = true;
+            mergePhase.orderByIndices = orderByPositions;
+            mergePhase.reverseFlags = reverseFlags;
+            mergePhase.nullsFirst = nullsFirst;
+        }
+        return mergePhase;
+    }
+
+
     /**
      * @param orderBySymbols Can be used to override orderBySymbols of {@param orderBy}
      * @param inputTypes Can be used if available to avoid extracting them again from {@param inputs}
      */
-    @Nullable
     public static MergePhase mergePhase(Planner.Context plannerContext,
                                         Collection<String> executionNodes,
                                         int upstreamPhaseExecutionNodesSize,
@@ -200,6 +232,11 @@ public class MergePhase extends AbstractProjectionsPhase implements UpstreamPhas
     @Override
     public void distributionInfo(DistributionInfo distributionInfo) {
         this.distributionInfo = distributionInfo;
+    }
+
+    @Override
+    public List<DataType> streamedTypes() {
+        return outputTypes;
     }
 
     public void executionNodes(Collection<String> executionNodes) {

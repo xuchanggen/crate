@@ -23,30 +23,39 @@
 package io.crate.planner.consumer;
 
 
-import com.google.common.collect.ImmutableList;
 import io.crate.operation.Paging;
 import io.crate.operation.projectors.TopN;
+import io.crate.planner.Plan;
+import io.crate.planner.ResultDescription;
+import io.crate.planner.node.dql.Collect;
+import io.crate.planner.node.dql.CollectPhase;
 import io.crate.planner.node.dql.MergePhase;
 import io.crate.planner.node.dql.RoutedCollectPhase;
 
-import javax.annotation.Nullable;
+import java.util.Collections;
 
 public class SimpleSelect {
 
-    public static void enablePagingIfApplicable(RoutedCollectPhase collectPhase,
-                                                @Nullable MergePhase mergePhase,
-                                                @Nullable Integer limit,
-                                                int offset,
+    public static void enablePagingIfApplicable(Plan subPlan,
+                                                MergePhase mergePhase,
                                                 String localNodeId) {
-        if (mergePhase == null || limit == null || limit == TopN.NO_LIMIT || (limit + offset) < Paging.PAGE_SIZE) {
+        ResultDescription resultDescription = subPlan.resultDescription();
+        if (!(subPlan instanceof Collect)) {
             return;
         }
-        mergePhase.executionNodes(ImmutableList.of(localNodeId));
-
-        if (collectPhase.nodePageSizeHint() != null) {
-            // in the directResponse case nodePageSizeHint has probably be set to limit
-            // since it is now push based we can reduce the nodePageSizeHint
-            collectPhase.pageSizeHint(limit + offset);
+        int limit = resultDescription.limit();
+        int offset = resultDescription.offset();
+        if (limit == TopN.NO_LIMIT || ((limit + offset) > Paging.PAGE_SIZE)) {
+            mergePhase.executionNodes(Collections.singletonList(localNodeId));
+            CollectPhase collectPhase = ((Collect) subPlan).collectPhase();
+            if (collectPhase instanceof RoutedCollectPhase) {
+                RoutedCollectPhase phase = (RoutedCollectPhase) collectPhase;
+                if (phase.nodePageSizeHint() != null) {
+                    // in the directResponse case nodePageSizeHint has probably be set to limit
+                    // since it is now push based we can reduce the nodePageSizeHint
+                    phase.pageSizeHint(limit + offset);
+                }
+            }
         }
     }
 }

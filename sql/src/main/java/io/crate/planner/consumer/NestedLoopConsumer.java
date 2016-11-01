@@ -295,7 +295,7 @@ class NestedLoopConsumer implements Consumer {
                     rightPlan,
                     limits.finalLimit(),
                     limits.offset(),
-                    PositionalOrderBy.of(orderBy, postNLOutputs)
+                    PositionalOrderBy.of(orderByBeforeSplit, postNLOutputs)
                 );
             } else {
                 return new NestedLoop(nl, leftPlan, rightPlan, TopN.NO_LIMIT, 0, null);

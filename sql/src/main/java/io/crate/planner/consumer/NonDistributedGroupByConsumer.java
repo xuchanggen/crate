@@ -113,7 +113,7 @@ class NonDistributedGroupByConsumer implements Consumer {
                                            ConsumerContext context,
                                            RowGranularity groupProjectionGranularity) {
             QuerySpec querySpec = table.querySpec();
-            List<Symbol> groupBy = querySpec.groupBy().get();
+            List<Symbol> groupKeys = querySpec.groupBy().get();
 
             ProjectionBuilder projectionBuilder = new ProjectionBuilder(functions, querySpec);
             SplitPoints splitPoints = projectionBuilder.getSplitPoints();
@@ -121,7 +121,7 @@ class NonDistributedGroupByConsumer implements Consumer {
             // mapper / collect
             GroupProjection groupProjection = projectionBuilder.groupProjection(
                 splitPoints.leaves(),
-                querySpec.groupBy().get(),
+                groupKeys,
                 splitPoints.aggregates(),
                 Aggregation.Step.ITER,
                 Aggregation.Step.PARTIAL,
@@ -137,17 +137,17 @@ class NonDistributedGroupByConsumer implements Consumer {
 
             // handler
             List<Symbol> collectOutputs = new ArrayList<>(
-                groupBy.size() +
+                groupKeys.size() +
                 splitPoints.aggregates().size());
-            collectOutputs.addAll(groupBy);
+            collectOutputs.addAll(groupKeys);
             collectOutputs.addAll(splitPoints.aggregates());
 
             table.tableRelation().validateOrderBy(querySpec.orderBy());
 
-            List<Projection> projections = new ArrayList<>();
-            projections.add(projectionBuilder.groupProjection(
+            List<Projection> mergeProjections = new ArrayList<>();
+            mergeProjections.add(projectionBuilder.groupProjection(
                 collectOutputs,
-                querySpec.groupBy().get(),
+                groupKeys,
                 splitPoints.aggregates(),
                 Aggregation.Step.PARTIAL,
                 Aggregation.Step.FINAL,
@@ -157,11 +157,11 @@ class NonDistributedGroupByConsumer implements Consumer {
             Optional<HavingClause> havingClause = querySpec.having();
             if (havingClause.isPresent()) {
                 HavingClause having = havingClause.get();
-                projections.add(ProjectionBuilder.filterProjection(collectOutputs, having));
+                mergeProjections.add(ProjectionBuilder.filterProjection(collectOutputs, having));
             }
             Limits limits = context.plannerContext().getLimits(querySpec);
             List<Symbol> qsOutputs = querySpec.outputs();
-            projections.add(ProjectionBuilder.topNProjection(
+            mergeProjections.add(ProjectionBuilder.topNProjection(
                 collectOutputs,
                 querySpec.orderBy().orNull(),
                 limits.offset(),
@@ -171,7 +171,7 @@ class NonDistributedGroupByConsumer implements Consumer {
             return Merge.create(
                 collect,
                 context.plannerContext(),
-                projections,
+                mergeProjections,
                 TopN.NO_LIMIT,
                 0,
                 qsOutputs.size()

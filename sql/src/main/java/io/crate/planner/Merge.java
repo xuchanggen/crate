@@ -126,10 +126,11 @@ public class Merge implements Plan, ResultDescription {
         return new Merge(
             subPlan,
             mergePhase,
-            resultDescription.limit(),
-            resultDescription.offset(),
+            TopN.NO_LIMIT,
+            0,
             resultDescription.numOutputs(),
-            resultDescription.orderBy());
+            null
+        );
     }
 
     private static List<Projection> addTopN(List<Projection> projections, @Nullable TopNProjection topN) {

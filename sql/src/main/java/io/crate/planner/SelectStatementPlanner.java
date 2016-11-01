@@ -28,31 +28,43 @@ import io.crate.analyze.*;
 import io.crate.analyze.relations.AnalyzedRelation;
 import io.crate.analyze.relations.AnalyzedRelationVisitor;
 import io.crate.analyze.relations.QueriedDocTable;
+import io.crate.analyze.relations.QueriedRelation;
+import io.crate.analyze.symbol.Aggregation;
 import io.crate.analyze.symbol.SelectSymbol;
 import io.crate.exceptions.ValidationException;
 import io.crate.exceptions.VersionInvalidException;
+import io.crate.metadata.Functions;
 import io.crate.metadata.Reference;
+import io.crate.metadata.RowGranularity;
 import io.crate.metadata.TableIdent;
+import io.crate.operation.projectors.TopN;
 import io.crate.planner.consumer.ConsumerContext;
 import io.crate.planner.consumer.ConsumingPlanner;
 import io.crate.planner.consumer.ESGetStatementPlanner;
+import io.crate.planner.distribution.DistributionInfo;
 import io.crate.planner.fetch.FetchPushDown;
 import io.crate.planner.fetch.MultiSourceFetchPushDown;
 import io.crate.planner.node.dql.QueryThenFetch;
 import io.crate.planner.node.fetch.FetchPhase;
 import io.crate.planner.node.fetch.FetchSource;
+import io.crate.planner.projection.AggregationProjection;
 import io.crate.planner.projection.FetchProjection;
+import io.crate.planner.projection.Projection;
+import io.crate.planner.projection.builder.ProjectionBuilder;
+import io.crate.planner.projection.builder.SplitPoints;
 import io.crate.sql.tree.QualifiedName;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 class SelectStatementPlanner {
 
     private final Visitor visitor;
 
-    SelectStatementPlanner(ConsumingPlanner consumingPlanner) {
-        visitor = new Visitor(consumingPlanner);
+    SelectStatementPlanner(Functions functions, ConsumingPlanner consumingPlanner) {
+        visitor = new Visitor(functions, consumingPlanner);
     }
 
     public Plan plan(SelectAnalyzedStatement statement, Planner.Context context) {
@@ -72,9 +84,11 @@ class SelectStatementPlanner {
 
     private static class Visitor extends AnalyzedRelationVisitor<Planner.Context, Plan> {
 
+        private final Functions functions;
         private final ConsumingPlanner consumingPlanner;
 
-        public Visitor(ConsumingPlanner consumingPlanner) {
+        public Visitor(Functions functions, ConsumingPlanner consumingPlanner) {
+            this.functions = functions;
             this.consumingPlanner = consumingPlanner;
         }
 
@@ -193,7 +207,8 @@ class SelectStatementPlanner {
 
         @Override
         public Plan visitQueriedSelectRelation(QueriedSelectRelation relation, Planner.Context context) {
-            throw new UnsupportedOperationException("complex sub selects are not supported");
+            // TODO: use subquery planner
+            return SelectRelationPlanner.plan(functions, relation, context, this::invokeConsumingPlanner);
         }
     }
 

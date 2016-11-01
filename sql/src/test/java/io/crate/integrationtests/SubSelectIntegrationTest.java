@@ -116,35 +116,36 @@ public class SubSelectIntegrationTest extends SQLTransportIntegrationTest {
     @Test
     public void testReferenceToNestedAggregatedField() throws Exception {
         setup.groupBySetup();
-
-        expectedException.expect(SQLActionException.class);
-        expectedException.expectMessage("complex sub selects are not supported");
         execute("select gender, minAge from ( " +
                 "  select gender, min(age) as minAge from characters group by gender" +
                 ") as ch " +
-                "where (minAge * 2) < 120");
+                "where (minAge * 2) < 120 order by gender");
+        assertThat(TestingHelpers.printedTable(response.rows()),
+            is("female| 32\n" +
+               "male| 34\n"));
     }
 
     @Test
     public void testNestedGroupByAggregation() throws Exception {
         setup.groupBySetup();
 
-        expectedException.expect(SQLActionException.class);
-        expectedException.expectMessage("complex sub selects are not supported");
-        execute("select count(*) from (" +
+        execute("select minAge, count(*) from (" +
                 "  select min(age) as minAge from characters group by gender) as ch " +
                 "group by minAge");
+        assertThat(TestingHelpers.printedTable(response.rows()),
+            is("32| 1\n" +
+               "34| 1\n"));
     }
 
     @Test
     public void testOrderingOnNestedAggregation() throws Exception {
         setup.groupBySetup();
-
-        expectedException.expect(SQLActionException.class);
-        expectedException.expectMessage("complex sub selects are not supported");
+        // TODO: fix this
         execute("select race, avg(age) as avgAge from ( " +
                 "  select * from characters where gender = 'male' order by age) as ch " +
                 "group by race");
+        assertThat(TestingHelpers.printedTable(response.rows()),
+            is(""));
     }
 
     @Test
@@ -343,5 +344,12 @@ public class SubSelectIntegrationTest extends SQLTransportIntegrationTest {
 
         expectedException.expectMessage("Using a non-integer constant in ORDER BY is not supported");
         execute("select x from t order by (select 1)");
+    }
+
+    @Test
+    public void testAggregationOnGroupBy() throws Exception {
+        execute("select min(t.col1), max(t.col1) from " +
+                "   (select col1, count(*) from unnest([1, 1, 2, 3]) group by 1) t");
+        assertThat(TestingHelpers.printedTable(response.rows()), is("1| 3\n"));
     }
 }

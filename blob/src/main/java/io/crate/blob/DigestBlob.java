@@ -24,10 +24,11 @@ package io.crate.blob;
 import com.google.common.io.ByteStreams;
 import io.crate.blob.exceptions.DigestMismatchException;
 import io.crate.common.Hex;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.transport.netty3.Netty3Utils;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.*;
@@ -53,7 +54,7 @@ public class DigestBlob {
     private MessageDigest md;
     private long chunks;
     private CountDownLatch headCatchedUpLatch;
-    private static final ESLogger logger = Loggers.getLogger(DigestBlob.class);
+    private static final Logger logger = Loggers.getLogger(DigestBlob.class);
 
     public DigestBlob(BlobContainer container, String digest, UUID transferId) {
         this.digest = digest;
@@ -177,8 +178,9 @@ public class DigestBlob {
     }
 
     public void addContent(BytesReference content, boolean last) {
+        ChannelBuffer channelBuffer = Netty3Utils.toChannelBuffer(content);
         try {
-            addContent(content.toChannelBuffer(), last);
+            addContent(channelBuffer, last);
         } catch (IOException e) {
             throw new BlobWriteException(digest, size, e);
         }
@@ -190,8 +192,9 @@ public class DigestBlob {
         }
 
         int written = 0;
-        ChannelBuffer channelBuffer = content.toChannelBuffer();
-        int readableBytes = channelBuffer.readableBytes();
+        ChannelBuffer channelBuffer = Netty3Utils.toChannelBuffer(content);
+
+        int readableBytes = content.length();
         assert readableBytes + headSize.get() <= headLength : "Got too many bytes in addToHead()";
 
         ByteBuffer byteBuffer = channelBuffer.toByteBuffer();

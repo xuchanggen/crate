@@ -24,9 +24,11 @@ package io.crate.plugin;
 
 import io.crate.ClusterIdService;
 import io.crate.module.CrateCoreModule;
+import io.crate.rest.CrateRestFilter;
 import io.crate.rest.CrateRestMainAction;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -57,5 +59,10 @@ public class CrateCorePlugin extends Plugin implements ActionPlugin {
     @Override
     public List<Class<? extends RestHandler>> getRestHandlers() {
         return Collections.singletonList(CrateRestMainAction.class);
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Collections.singletonList(CrateRestFilter.ES_API_ENABLED_SETTING);
     }
 }

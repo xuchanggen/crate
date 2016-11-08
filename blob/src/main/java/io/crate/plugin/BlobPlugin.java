@@ -24,24 +24,38 @@ package io.crate.plugin;
 
 import com.google.common.collect.ImmutableList;
 import io.crate.blob.*;
-import io.crate.blob.v2.BlobIndexModule;
-import io.crate.blob.v2.BlobIndicesService;
 import io.crate.blob.v2.BlobIndicesModule;
-import io.crate.blob.v2.BlobShardModule;
+import io.crate.blob.v2.BlobIndicesService;
 import io.crate.http.netty.CrateNettyHttpServerTransport;
-import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchRequestParsers;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.*;
 
-public class BlobPlugin extends Plugin {
+import static org.elasticsearch.common.network.NetworkModule.HTTP_TYPE_KEY;
+
+public class BlobPlugin extends Plugin implements ActionPlugin {
+
+    public static final String CRATE_HTTP_TRANSPORT_NAME = "crate";
 
     private final Settings settings;
+    private BlobModule blobModule;
+    private BlobIndicesService blobIndicesService;
+    private BlobIndicesModule blobIndicesModule;
 
     public BlobPlugin(Settings settings) {
         this.settings = settings;
@@ -62,9 +76,29 @@ public class BlobPlugin extends Plugin {
             return Collections.emptyList();
         }
         Collection<Module> modules = new ArrayList<>(2);
-        modules.add(new BlobModule());
-        modules.add(new BlobIndicesModule());
+
+        blobModule = new BlobModule();
+        modules.add(blobModule);
+        blobIndicesModule = new BlobIndicesModule();
+        modules.add(blobIndicesModule);
         return modules;
+    }
+
+    @Override
+    public Settings additionalSettings() {
+        // XDOBE: add http_address to node attributes here? see CrateNettyHttpServerTransport
+        return Settings.builder()
+            .put(HTTP_TYPE_KEY, CRATE_HTTP_TRANSPORT_NAME)
+            .build();
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(
+            BlobIndicesService.SETTING_BLOBS_PATH,
+            BlobIndicesService.SETTING_INDEX_BLOBS_ENABLED,
+            BlobIndicesService.SETTING_INDEX_BLOBS_PATH
+        );
     }
 
     @Override
@@ -73,26 +107,38 @@ public class BlobPlugin extends Plugin {
         if (settings.getAsBoolean("node.client", false)) {
             return Collections.emptyList();
         }
-        return ImmutableList.<Class<? extends LifecycleComponent>>of(BlobService.class, BlobIndicesService.class);
+
+        //try to not inject the indices service is only possible if we get Node.nodenv for blobenvironment
+        return ImmutableList.of(BlobService.class, BlobIndicesService.class);
     }
 
     @Override
-    public Collection<Module> indexModules(Settings indexSettings) {
-        return Collections.<Module>singletonList(new BlobIndexModule(indexSettings));
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                               SearchRequestParsers searchRequestParsers) {
+        assert blobIndicesService == null: "blobIndicesService is already created";
+        blobIndicesService = new BlobIndicesService(client, clusterService);
+        return Collections.singletonList(blobIndicesService);
     }
 
     @Override
-    public Collection<Module> shardModules(Settings indexSettings) {
-        return Collections.<Module>singletonList(new BlobShardModule(indexSettings));
+    public void onIndexModule(IndexModule indexModule) {
+        if (BlobIndicesService.SETTING_INDEX_BLOBS_ENABLED.get(indexModule.getSettings())) {
+            indexModule.addIndexEventListener(blobIndicesService);
+        }
     }
 
-    public void onModule(HttpServerModule module) {
-        module.setHttpServerTransport(CrateNettyHttpServerTransport.class, "crate");
+    public void onModule(NetworkModule networkModule) {
+        if (networkModule.canRegisterHttpExtensions()) {
+            networkModule.registerHttpTransport(CRATE_HTTP_TRANSPORT_NAME, CrateNettyHttpServerTransport.class);
+        }
     }
 
-    public void onModule(ActionModule module) {
-        module.registerAction(PutChunkAction.INSTANCE, TransportPutChunkAction.class);
-        module.registerAction(StartBlobAction.INSTANCE, TransportStartBlobAction.class);
-        module.registerAction(DeleteBlobAction.INSTANCE, TransportDeleteBlobAction.class);
+    @Override
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        return Arrays.asList(
+            new ActionHandler<>(PutChunkAction.INSTANCE, TransportPutChunkAction.class),
+            new ActionHandler<>(StartBlobAction.INSTANCE, TransportStartBlobAction.class),
+            new ActionHandler<>(DeleteBlobAction.INSTANCE, TransportDeleteBlobAction.class));
     }
 }

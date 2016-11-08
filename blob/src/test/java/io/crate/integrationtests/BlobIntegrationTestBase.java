@@ -23,29 +23,33 @@
 package io.crate.integrationtests;
 
 import io.crate.plugin.BlobPlugin;
+import io.crate.plugin.CrateCorePlugin;
 import io.crate.rest.CrateRestFilter;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.Netty3Plugin;
 
+import java.util.Arrays;
 import java.util.Collection;
+
+import static org.elasticsearch.common.network.NetworkModule.HTTP_ENABLED;
 
 public abstract class BlobIntegrationTestBase extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
+        return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(Node.HTTP_ENABLED, true)
-            .put(CrateRestFilter.ES_API_ENABLED_SETTING, true)
+            .put(HTTP_ENABLED.getKey(), true)
+            .put(CrateRestFilter.ES_API_ENABLED_SETTING.getKey(), true)
             .build();
     }
 
     @SuppressWarnings("unchecked")
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(BlobPlugin.class);
+        return Arrays.asList(Netty3Plugin.class, CrateCorePlugin.class, BlobPlugin.class);
     }
 
 }

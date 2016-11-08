@@ -21,33 +21,61 @@
 
 package io.crate.blob.v2;
 
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.common.inject.Inject;
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
 
-public class BlobIndex extends AbstractIndexComponent {
+import java.nio.file.Path;
 
+class BlobIndex extends AbstractIndexComponent {
 
-    private final OperationRouting operationRouting;
-    private final ClusterService clusterService;
+    private final IntObjectMap<BlobShard> shards = new IntObjectHashMap<>();
 
-    @Inject
-    public BlobIndex(Index index, IndexSettingsService indexSettingsService,
-                     OperationRouting operationRouting, ClusterService clusterService) {
-        super(index, indexSettingsService.getSettings());
-        this.operationRouting = operationRouting;
-        this.clusterService = clusterService;
+    private final Path customPath;
+
+    BlobIndex(IndexService indexService) {
+        super(indexService.getIndexSettings());
+        String pathFromSettings = BlobIndicesService.SETTING_INDEX_BLOBS_PATH.get(indexService.getMetaData().getSettings());
+        if (pathFromSettings == null){
+            pathFromSettings = BlobIndicesService.SETTING_BLOBS_PATH.get(indexService.getMetaData().getSettings());
+        }
+        if (pathFromSettings != null){
+            customPath = PathUtils.get(pathFromSettings);
+        } else {
+            customPath = null;
+        }
     }
 
-    public ShardId shardId(String digest) {
-        ShardIterator si = operationRouting.getShards(clusterService.state(), index.getName(), null, null, digest, "_only_local");
-        // TODO: check null and raise
-        return si.shardId();
+    BlobShard getBlobShard(int id){
+        return shards.get(id);
     }
 
+    void newShard(IndexShard shard) {
+        assert !shards.containsKey(shard.shardId().getId()): "shard already exists";
+        if (shard.shardPath().isCustomDataPath()){
+            throw new IllegalArgumentException("custom data paths are not supported for blob tables");
+        }
+
+        Path shardPath;
+        if (customPath != null){
+            Path relative = shard.shardPath().getRootStatePath().relativize(shard.shardPath().getShardStatePath());
+            shardPath = customPath.resolve(relative);
+        } else {
+            shardPath = shard.shardPath().getDataPath();
+        }
+        BlobShard blobShard = new BlobShard(shard, shardPath);
+        shards.put(shard.shardId().getId(), blobShard);
+    }
+
+    BlobShard removeShard(int id) {
+        assert shards.containsKey(id): "shard does not exist";
+        return shards.remove(id);
+    }
+
+    public boolean isEmpty() {
+        return shards.isEmpty();
+    }
 }

@@ -21,21 +21,21 @@
 
 package io.crate.blob;
 
-import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class DeleteBlobResponse extends ActionWriteResponse {
+class DeleteBlobResponse extends ReplicationResponse {
 
     public boolean deleted;
 
-    public DeleteBlobResponse() {
+    DeleteBlobResponse() {
         this.deleted = false;
     }
 
-    public DeleteBlobResponse(boolean deleted) {
+    DeleteBlobResponse(boolean deleted) {
         this.deleted = deleted;
     }
 

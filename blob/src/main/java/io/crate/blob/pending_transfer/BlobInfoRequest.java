@@ -26,7 +26,7 @@ import java.util.UUID;
 
 public class BlobInfoRequest extends BlobTransportRequest {
 
-    public BlobInfoRequest() {
+    BlobInfoRequest() {
 
     }
 

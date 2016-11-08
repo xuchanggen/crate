@@ -24,16 +24,21 @@ package io.crate.blob;
 import com.google.common.util.concurrent.SettableFuture;
 import io.crate.blob.exceptions.DigestMismatchException;
 import io.crate.blob.pending_transfer.*;
+import io.crate.blob.recovery.BlobRecoveryHandler;
 import io.crate.blob.v2.BlobIndicesService;
 import io.crate.blob.v2.BlobShard;
-import org.elasticsearch.cluster.ClusterService;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.recovery.*;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -42,8 +47,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.*;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
-public class BlobTransferTarget extends AbstractComponent {
+public class BlobTransferTarget extends AbstractComponent implements RecoverySourceHandlerProvider {
 
     private final ConcurrentMap<UUID, BlobTransferStatus> activeTransfers =
         ConcurrentCollections.newConcurrentMap();
@@ -52,6 +59,7 @@ public class BlobTransferTarget extends AbstractComponent {
     private final ThreadPool threadPool;
     private final TransportService transportService;
     private final ClusterService clusterService;
+    private final RecoverySettings recoverySettings;
     private CountDownLatch getHeadRequestLatch;
     private SettableFuture<CountDownLatch> getHeadRequestLatchFuture;
     private final ConcurrentLinkedQueue<UUID> activePutHeadChunkTransfers;
@@ -62,11 +70,14 @@ public class BlobTransferTarget extends AbstractComponent {
     private final TimeValue STATE_REMOVAL_DELAY;
 
     @Inject
-    public BlobTransferTarget(Settings settings, BlobIndicesService blobIndicesService,
+    public BlobTransferTarget(Settings settings,
+                              BlobIndicesService blobIndicesService,
                               ThreadPool threadPool,
                               TransportService transportService,
-                              ClusterService clusterService) {
+                              ClusterService clusterService,
+                              RecoverySettings recoverySettings) {
         super(settings);
+        this.recoverySettings = recoverySettings;
         String property = System.getProperty("tests.short_timeouts");
         if (property == null) {
             STATE_REMOVAL_DELAY = new TimeValue(40, TimeUnit.SECONDS);
@@ -79,16 +90,18 @@ public class BlobTransferTarget extends AbstractComponent {
         this.clusterService = clusterService;
         this.getHeadRequestLatchFuture = SettableFuture.create();
         this.activePutHeadChunkTransfers = new ConcurrentLinkedQueue<>();
+        recoverySettings.registerRecoverySourceHandlerProvider(this);
+
     }
 
     public BlobTransferStatus getActiveTransfer(UUID transferId) {
         return activeTransfers.get(transferId);
     }
 
-    public void startTransfer(int shardId, StartBlobRequest request, StartBlobResponse response) {
+    public void startTransfer(StartBlobRequest request, StartBlobResponse response) {
         logger.debug("startTransfer {} {}", request.transferId(), request.isLast());
 
-        BlobShard blobShard = blobIndicesService.blobShardSafe(request.index(), shardId);
+        BlobShard blobShard = blobIndicesService.blobShardSafe(request.shardId());
         File existing = blobShard.blobContainer().getFile(request.id());
         long size = existing.length();
         if (existing.exists()) {
@@ -121,10 +134,11 @@ public class BlobTransferTarget extends AbstractComponent {
 
     public void continueTransfer(PutChunkReplicaRequest request, PutChunkResponse response, int shardId) {
         BlobTransferStatus status = activeTransfers.get(request.transferId);
-        if (status == null) {
-            status = restoreTransferStatus(request, shardId);
-        }
-
+        assert status != null: "unable to find status in activeTransfers";
+        // XDOBE: need to check if we really need this future here
+//        if (status == null) {
+//            status = restoreTransferStatus(request, shardId);
+//        }
         addContent(request, response, status);
     }
 
@@ -145,7 +159,7 @@ public class BlobTransferTarget extends AbstractComponent {
 
         DiscoveryNodes nodes = clusterService.state().getNodes();
         DiscoveryNode recipientNodeId = nodes.get(request.sourceNodeId);
-        String senderNodeId = nodes.localNodeId();
+        String senderNodeId = nodes.getLocalNodeId();
 
         BlobTransferInfoResponse transferInfoResponse =
             (BlobTransferInfoResponse) transportService.submitRequest(
@@ -161,12 +175,14 @@ public class BlobTransferTarget extends AbstractComponent {
                 }
             ).txGet();
 
-        BlobShard blobShard;
-        try {
-            blobShard = blobIndicesService.blobShardFuture(transferInfoResponse.index, shardId).get();
-        } catch (InterruptedException | ExecutionException e) {
-            throw new TransferRestoreException("failure loading blobShard", request.transferId, e);
-        }
+        BlobShard blobShard = blobIndicesService.blobShard(request.shardId());
+        assert blobShard != null;
+        // XDOBE: check if we need a future here
+//        try {
+//            blobShard = blobIndicesService.blobShardFuture(transferInfoResponse.index, shardId).get();
+//        } catch (InterruptedException | ExecutionException e) {
+//            throw new TransferRestoreException("failure loading blobShard", request.transferId, e);
+//        }
 
         DigestBlob digestBlob = DigestBlob.resumeTransfer(
             blobShard.blobContainer(), transferInfoResponse.digest, request.transferId, request.currentPos
@@ -243,6 +259,17 @@ public class BlobTransferTarget extends AbstractComponent {
              */
             threadPool.schedule(STATE_REMOVAL_DELAY, ThreadPool.Names.GENERIC, new StateRemoval(transferId));
         }
+    }
+
+    @Override
+    public RecoverySourceHandler get(IndexShard shard, StartRecoveryRequest request, RemoteRecoveryTargetHandler recoveryTarget, Function<String, Releasable> delayNewRecoveries, Logger logger) {
+        if (!BlobIndicesService.SETTING_INDEX_BLOBS_ENABLED.get(shard.indexSettings().getIndexMetaData().getSettings())) {
+            Supplier<Long> currentClusterStateVersionSupplier = () -> clusterService.state().getVersion();
+            return new BlobRecoveryHandler(shard, recoveryTarget, request, currentClusterStateVersionSupplier,
+                delayNewRecoveries, recoverySettings, logger, transportService, this, blobIndicesService);
+        }
+        return null;
+
     }
 
     private class StateRemoval implements Runnable {

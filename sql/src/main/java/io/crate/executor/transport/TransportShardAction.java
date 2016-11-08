@@ -77,7 +77,7 @@ public abstract class TransportShardAction<R extends ShardRequest>
     }
 
     @Override
-    protected void shardOperationOnReplica(final R shardRequest) {
+    protected ReplicaResult shardOperationOnReplica(final R shardRequest) {
         KillableCallable<Tuple> callable = new KillableWrapper() {
             @Override
             public Tuple call() throws Exception {
@@ -86,6 +86,7 @@ public abstract class TransportShardAction<R extends ShardRequest>
             }
         };
         wrapOperationInKillable(shardRequest, callable);
+        return null;
     }
 
     @Override

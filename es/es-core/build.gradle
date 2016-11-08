@@ -34,7 +34,6 @@ dependencies {
     compile "com.twitter:jsr166e:1.1.0"
     compile "com.vividsolutions:jts:${versions.jts}"
     compile "commons-cli:commons-cli:${versions.commonscli}"
-    compile "io.netty:netty:${versions.netty}"
     compile "joda-time:joda-time:${versions.jodatime}"
     //compile "log4j:apache-log4j-extras:${versions.log4j}"
     //compile "log4j:log4j:${versions.log4j}"

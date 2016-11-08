@@ -30,7 +30,7 @@ import io.crate.blob.exceptions.MissingHTTPEndpointException;
 import io.crate.blob.v2.BlobIndicesService;
 import io.crate.blob.v2.BlobShard;
 import io.crate.blob.v2.BlobsDisabledException;
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -61,7 +61,7 @@ public class HttpBlobHandler extends SimpleChannelUpstreamHandler implements
     private static final String EXPIRES_VALUE = "Thu, 31 Dec 2037 23:59:59 GMT";
     private static final String BLOBS_ENDPOINT = "/_blobs";
     public static final Pattern BLOBS_PATTERN = Pattern.compile(String.format(Locale.ENGLISH, "^%s/([^_/][^/]*)/([0-9a-f]{40})$", BLOBS_ENDPOINT));
-    private static final ESLogger LOGGER = Loggers.getLogger(HttpBlobHandler.class);
+    private static final Logger LOGGER = Loggers.getLogger(HttpBlobHandler.class);
 
     private static final ChannelBuffer CONTINUE = ChannelBuffers.copiedBuffer(
         "HTTP/1.1 100 Continue\r\n\r\n", CharsetUtil.US_ASCII);
@@ -230,6 +230,7 @@ public class HttpBlobHandler extends SimpleChannelUpstreamHandler implements
     public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e)
         throws Exception {
         Throwable ex = e.getCause();
+        LOGGER.debug("exceptionCaught: {}", ex);
         if (ex instanceof ClosedChannelException) {
             LOGGER.trace("channel closed: {}", ex.toString());
             return;
@@ -260,6 +261,7 @@ public class HttpBlobHandler extends SimpleChannelUpstreamHandler implements
             status = HttpResponseStatus.INTERNAL_SERVER_ERROR;
             LOGGER.error("unhandled exception:", ex);
         }
+        LOGGER.debug("exceptinoCaught simpleResponse: {} {}", status, body);
         simpleResponse(status, body);
     }
 

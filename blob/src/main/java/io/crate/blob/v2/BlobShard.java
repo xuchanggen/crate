@@ -22,30 +22,29 @@
 package io.crate.blob.v2;
 
 import io.crate.blob.BlobContainer;
-import io.crate.blob.BlobEnvironment;
 import io.crate.blob.stats.BlobStats;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
 
 public class BlobShard extends AbstractIndexShardComponent {
+
+    private static final String BLOBS_SUB_PATH = "blobs";
 
     private final BlobContainer blobContainer;
     private final IndexShard indexShard;
 
     @Inject
-    public BlobShard(ShardId shardId,
-                     IndexSettingsService indexSettingsService,
-                     BlobEnvironment blobEnvironment,
-                     IndexShard indexShard) {
-        super(shardId, indexSettingsService.getSettings());
+    public BlobShard(IndexShard indexShard, Path shardPath) {
+        super(indexShard.shardId(), indexShard.indexSettings());
         this.indexShard = indexShard;
-        File blobDir = blobDir(blobEnvironment);
+        File blobDir = shardPath.resolve(BLOBS_SUB_PATH).toFile();
         logger.info("creating BlobContainer at {}", blobDir);
         this.blobContainer = new BlobContainer(blobDir);
     }
@@ -76,13 +75,17 @@ public class BlobShard extends AbstractIndexShardComponent {
         return stats;
     }
 
-    private File blobDir(BlobEnvironment blobEnvironment) {
-        if (indexSettings.get(BlobIndicesService.SETTING_INDEX_BLOBS_PATH) != null) {
-            File blobPath = new File(indexSettings.get(BlobIndicesService.SETTING_INDEX_BLOBS_PATH));
-            blobEnvironment.validateBlobsPath(blobPath);
-            return blobEnvironment.shardLocation(shardId, blobPath);
+    void deletePath() {
+        File dir = blobContainer.getBaseDirectory();
+        if (dir.exists()){
+            logger.debug("[{}] Deleting blob shard directory '{}'", dir);
+            try {
+                IOUtils.rm(blobContainer.getBaseDirectory().toPath());
+            } catch (IOException e) {
+                logger.warn("Could not delete blob shard directory {} {}", dir, e);
+            }
         } else {
-            return blobEnvironment.shardLocation(shardId);
+            logger.warn("wanted to delete blob shard directory {} but it was already gone", dir);
         }
     }
 }

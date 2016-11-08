@@ -83,7 +83,7 @@ public class InternalBlobTableInfoFactory implements BlobTableInfoFactory {
 
     private BytesRef blobsPath(Settings indexMetaDataSettings) {
         BytesRef blobsPath;
-        String blobsPathStr = indexMetaDataSettings.get(BlobIndicesService.SETTING_INDEX_BLOBS_PATH);
+        String blobsPathStr = BlobIndicesService.SETTING_INDEX_BLOBS_PATH.get(indexMetaDataSettings);
         if (blobsPathStr != null) {
             blobsPath = new BytesRef(blobsPathStr);
         } else {

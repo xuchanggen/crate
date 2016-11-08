@@ -25,42 +25,39 @@ import io.crate.blob.exceptions.MissingHTTPEndpointException;
 import io.crate.blob.pending_transfer.BlobHeadRequestHandler;
 import io.crate.blob.v2.BlobIndicesService;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.http.HttpServer;
-import org.elasticsearch.indices.recovery.BlobRecoverySource;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Locale;
 
-public class BlobService extends AbstractLifecycleComponent<BlobService> {
+public class BlobService extends AbstractLifecycleComponent {
 
     private final Injector injector;
     private final BlobHeadRequestHandler blobHeadRequestHandler;
 
     private final ClusterService clusterService;
-    private final BlobEnvironment blobEnvironment;
 
     @Inject
     public BlobService(Settings settings,
                        ClusterService clusterService,
                        Injector injector,
-                       BlobHeadRequestHandler blobHeadRequestHandler,
-                       BlobEnvironment blobEnvironment) {
+                       BlobHeadRequestHandler blobHeadRequestHandler) {
         super(settings);
         this.clusterService = clusterService;
         this.injector = injector;
         this.blobHeadRequestHandler = blobHeadRequestHandler;
-        this.blobEnvironment = blobEnvironment;
     }
 
     public RemoteDigestBlob newBlob(String index, String digest) {
@@ -75,17 +72,10 @@ public class BlobService extends AbstractLifecycleComponent<BlobService> {
     protected void doStart() throws ElasticsearchException {
         logger.info("BlobService.doStart() {}", this);
 
-        // suppress warning about replaced recovery handler
-        ESLogger transportServiceLogger = Loggers.getLogger(TransportService.class);
-        String previousLevel = transportServiceLogger.getLevel();
-        transportServiceLogger.setLevel("ERROR");
-        injector.getInstance(BlobRecoverySource.class).registerHandler();
-        transportServiceLogger.setLevel(previousLevel);
-
         // validate the optional blob path setting
-        String globalBlobPathPrefix = settings.get(BlobEnvironment.SETTING_BLOBS_PATH);
+        String globalBlobPathPrefix = BlobIndicesService.SETTING_BLOBS_PATH.get(settings);
         if (globalBlobPathPrefix != null) {
-            blobEnvironment.blobsPath(new File(globalBlobPathPrefix));
+            validateBlobsPath(new File(globalBlobPathPrefix));
         }
 
         blobHeadRequestHandler.registerHandler();
@@ -101,6 +91,31 @@ public class BlobService extends AbstractLifecycleComponent<BlobService> {
             logger.warn("Http server should be enabled for blob support");
         }
     }
+
+    /**
+     * Validates a given blobs data path
+     */
+    public static void validateBlobsPath(File blobsPath) {
+        if (blobsPath.exists()) {
+            if (blobsPath.isFile()) {
+                throw new SettingsException(
+                    String.format(Locale.ENGLISH, "blobs path '%s' is a file, must be a directory", blobsPath.getAbsolutePath()));
+            }
+            if (!blobsPath.canWrite()) {
+                throw new SettingsException(
+                    String.format(Locale.ENGLISH, "blobs path '%s' is not writable", blobsPath.getAbsolutePath()));
+            }
+        } else {
+            try {
+                Files.createDirectories(blobsPath.toPath());
+            } catch (IOException e) {
+                throw new SettingsException(
+                    String.format(Locale.ENGLISH, "blobs path '%s' could not be created", blobsPath.getAbsolutePath()));
+            }
+        }
+    }
+
+
 
     @Override
     protected void doStop() throws ElasticsearchException {
@@ -123,9 +138,9 @@ public class BlobService extends AbstractLifecycleComponent<BlobService> {
      */
     public String getRedirectAddress(String index, String digest) throws MissingHTTPEndpointException {
         ShardIterator shards = clusterService.operationRouting().getShards(
-            clusterService.state(), index, null, null, digest, "_local");
+            clusterService.state(), index, null, digest, "_local");
 
-        String localNodeId = clusterService.state().nodes().localNodeId();
+        String localNodeId = clusterService.state().nodes().getLocalNodeId();
         DiscoveryNodes nodes = clusterService.state().getNodes();
         ShardRouting shard;
         while ((shard = shards.nextOrNull()) != null) {

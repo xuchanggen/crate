@@ -28,12 +28,12 @@ import org.elasticsearch.index.shard.ShardId;
 
 public class BlobRecoveryStatus {
 
-    private final RecoveryStatus indexRecoveryStatus;
+    private final RecoveryTarget indexRecoveryStatus;
     private final ConcurrentMapLong<BlobRecoveryTransferStatus> onGoingTransfers = ConcurrentCollections.newConcurrentMapLong();
     final BlobShard blobShard;
 
 
-    public BlobRecoveryStatus(RecoveryStatus indexRecoveryStatus, BlobShard blobShard) {
+    public BlobRecoveryStatus(RecoveryTarget indexRecoveryStatus, BlobShard blobShard) {
         this.indexRecoveryStatus = indexRecoveryStatus;
         this.blobShard = blobShard;
     }

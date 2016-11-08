@@ -30,15 +30,15 @@ import org.elasticsearch.transport.TransportRequest;
 import java.io.IOException;
 import java.util.UUID;
 
-public class PutBlobHeadChunkRequest extends TransportRequest {
+class PutBlobHeadChunkRequest extends TransportRequest {
 
     public UUID transferId;
     public BytesReference content;
 
-    public PutBlobHeadChunkRequest() {
+    PutBlobHeadChunkRequest() {
     }
 
-    public PutBlobHeadChunkRequest(UUID transferId, BytesArray bytesArray) {
+    PutBlobHeadChunkRequest(UUID transferId, BytesArray bytesArray) {
         this.transferId = transferId;
         this.content = bytesArray;
     }

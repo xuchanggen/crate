@@ -21,46 +21,43 @@
 
 package io.crate.blob;
 
-import io.crate.blob.v2.BlobIndicesService;
 import io.crate.blob.v2.BlobShard;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndicesLifecycle;
 
 public class BlobShardFuture extends BaseFuture<BlobShard> {
 
-    public BlobShardFuture(final BlobIndicesService blobIndicesService, final IndicesLifecycle indicesLifecycle,
-                           final String index, final int shardId) {
-        BlobShard blobShard = blobIndicesService.blobShard(index, shardId);
-        if (blobShard != null) {
-            set(blobShard);
-            return;
-        }
-
-        IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
-
-            @Override
-            public void afterIndexShardCreated(IndexShard indexShard) {
-                super.afterIndexShardCreated(indexShard);
-                if (indexShard.shardId().index().getName().equals(index)) {
-                    set(blobIndicesService.blobShardSafe(index, shardId));
-                    indicesLifecycle.removeListener(this);
-                }
-            }
-        };
-        indicesLifecycle.addListener(listener);
-
-        /**
-         * prevent race condition:
-         * if the index is created before the listener is added
-         * but after the first blobShard() call
-         */
-        if (!isDone()) {
-            blobShard = blobIndicesService.blobShard(index, shardId);
-            if (blobShard != null) {
-                indicesLifecycle.removeListener(listener);
-                set(blobShard);
-            }
-        }
-    }
+//    public BlobShardFuture(final BlobIndicesService blobIndicesService, final IndicesLifecycle indicesLifecycle,
+//                           final String index, final int shardId) {
+//        BlobShard blobShard = blobIndicesService.blobShard(index, shardId);
+//        if (blobShard != null) {
+//            set(blobShard);
+//            return;
+//        }
+//
+//        IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
+//
+//            @Override
+//            public void afterIndexShardCreated(IndexShard indexShard) {
+//                super.afterIndexShardCreated(indexShard);
+//                if (indexShard.shardId().index().getName().equals(index)) {
+//                    set(blobIndicesService.blobShardSafe(index, shardId));
+//                    indicesLifecycle.removeListener(this);
+//                }
+//            }
+//        };
+//        indicesLifecycle.addListener(listener);
+//
+//        /**
+//         * prevent race condition:
+//         * if the index is created before the listener is added
+//         * but after the first blobShard() call
+//         */
+//        if (!isDone()) {
+//            blobShard = blobIndicesService.blobShard(index, shardId);
+//            if (blobShard != null) {
+//                indicesLifecycle.removeListener(listener);
+//                set(blobShard);
+//            }
+//        }
+//    }
 }

@@ -27,53 +27,44 @@ import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import io.crate.action.FutureActionListener;
-import io.crate.blob.BlobEnvironment;
-import io.crate.blob.BlobShardFuture;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
-import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
-import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.indices.IndicesLifecycle;
-import org.elasticsearch.indices.IndicesService;
 
-import java.io.File;
-import java.io.IOException;
+import java.util.HashMap;
 
-public class BlobIndicesService extends AbstractLifecycleComponent<BlobIndicesService> implements ClusterStateListener {
+public class BlobIndicesService extends AbstractLifecycleComponent implements IndexEventListener {
 
-    public static final String SETTING_INDEX_BLOBS_ENABLED = "index.blobs.enabled";
-    public static final String SETTING_INDEX_BLOBS_PATH = "index.blobs.path";
+    public static final Setting<String> SETTING_BLOBS_PATH = Setting.simpleString("blobs.path", Setting.Property.NodeScope);
+    public static final Setting<Boolean> SETTING_INDEX_BLOBS_ENABLED = Setting.boolSetting("index.blobs.enabled", false, Setting.Property.IndexScope);
+    public static final Setting<String> SETTING_INDEX_BLOBS_PATH = Setting.simpleString("index.blobs.path", Setting.Property.IndexScope);
+
     private static final String INDEX_PREFIX = ".blob_";
 
-    private final Provider<TransportUpdateSettingsAction> transportUpdateSettingsActionProvider;
-    private final Provider<TransportCreateIndexAction> transportCreateIndexActionProvider;
-    private final Provider<TransportDeleteIndexAction> transportDeleteIndexActionProvider;
-    private final IndicesService indicesService;
-    private final IndicesLifecycle indicesLifecycle;
-    private final BlobEnvironment blobEnvironment;
     private final ClusterService clusterService;
+
+    private final Client client;
+    private final HashMap<String, BlobIndex> indices = new HashMap<>();
+
 
     public static final Predicate<String> indicesFilter = new Predicate<String>() {
         @Override
@@ -90,34 +81,20 @@ public class BlobIndicesService extends AbstractLifecycleComponent<BlobIndicesSe
     };
 
     @Inject
-    public BlobIndicesService(Settings settings,
-                              Provider<TransportCreateIndexAction> transportCreateIndexActionProvider,
-                              Provider<TransportDeleteIndexAction> transportDeleteIndexActionProvider,
-                              Provider<TransportUpdateSettingsAction> transportUpdateSettingsActionProvider,
-                              IndicesService indicesService,
-                              IndicesLifecycle indicesLifecycle,
-                              BlobEnvironment blobEnvironment,
+    public BlobIndicesService(Client client,
                               ClusterService clusterService) {
-        super(settings);
-        this.transportCreateIndexActionProvider = transportCreateIndexActionProvider;
-        this.transportDeleteIndexActionProvider = transportDeleteIndexActionProvider;
-        this.transportUpdateSettingsActionProvider = transportUpdateSettingsActionProvider;
-        this.indicesService = indicesService;
-        this.indicesLifecycle = indicesLifecycle;
-        this.blobEnvironment = blobEnvironment;
+        super(clusterService.getSettings());
+        this.client = client;
         this.clusterService = clusterService;
-        logger.setLevel("debug");
     }
 
     @Override
     protected void doStart() {
-        // add listener here to avoid guice proxy errors if the ClusterService could not be build
-        clusterService.addFirst(this);
+        // XDOBE: check if we need to be a lifecyclecomp
     }
 
     @Override
     protected void doStop() {
-        clusterService.remove(this);
     }
 
     @Override
@@ -125,7 +102,19 @@ public class BlobIndicesService extends AbstractLifecycleComponent<BlobIndicesSe
     }
 
     public BlobShard blobShardSafe(ShardId shardId) {
-        return blobShardSafe(shardId.getIndex(), shardId.id());
+        BlobShard bs = blobShard(shardId);
+        if (bs != null) {
+            return bs;
+        } else {
+            IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.getIndex());
+            if (indexMetaData == null) {
+                throw new IndexNotFoundException(shardId.getIndexName());
+            }
+            if (!BlobIndicesService.SETTING_INDEX_BLOBS_ENABLED.get(indexMetaData.getSettings())) {
+                throw new BlobsDisabledException(shardId.getIndex());
+            }
+            throw new ShardNotFoundException(shardId);
+        }
     }
 
     /**
@@ -138,7 +127,7 @@ public class BlobIndicesService extends AbstractLifecycleComponent<BlobIndicesSe
         FutureActionListener<UpdateSettingsResponse, Void> listener =
             new FutureActionListener<>(Functions.<Void>constant(null));
 
-        transportUpdateSettingsActionProvider.get().execute(
+        client.admin().indices().updateSettings(
             new UpdateSettingsRequest(indexSettings, fullIndexName(tableName)), listener);
         return listener;
     }
@@ -147,10 +136,10 @@ public class BlobIndicesService extends AbstractLifecycleComponent<BlobIndicesSe
                                                   Settings indexSettings) {
         Settings.Builder builder = Settings.builder();
         builder.put(indexSettings);
-        builder.put(SETTING_INDEX_BLOBS_ENABLED, true);
+        builder.put(SETTING_INDEX_BLOBS_ENABLED.getKey(), true);
 
         final SettableFuture<Void> result = SettableFuture.create();
-        transportCreateIndexActionProvider.get().execute(new CreateIndexRequest(fullIndexName(tableName), builder.build()), new ActionListener<CreateIndexResponse>() {
+        client.admin().indices().create(new CreateIndexRequest(fullIndexName(tableName), builder.build()), new ActionListener<CreateIndexResponse>() {
             @Override
             public void onResponse(CreateIndexResponse createIndexResponse) {
                 assert createIndexResponse.isAcknowledged();
@@ -158,7 +147,7 @@ public class BlobIndicesService extends AbstractLifecycleComponent<BlobIndicesSe
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 result.setException(e);
             }
         });
@@ -167,46 +156,62 @@ public class BlobIndicesService extends AbstractLifecycleComponent<BlobIndicesSe
 
     public ListenableFuture<Void> dropBlobTable(final String tableName) {
         FutureActionListener<DeleteIndexResponse, Void> listener = new FutureActionListener<>(Functions.<Void>constant(null));
-        transportDeleteIndexActionProvider.get().execute(new DeleteIndexRequest(fullIndexName(tableName)), listener);
+        client.admin().indices().delete(new DeleteIndexRequest(fullIndexName(tableName)), listener);
         return listener;
     }
 
-    public BlobShard blobShard(String index, int shardId) {
-        IndexService indexService = indicesService.indexService(index);
-        if (indexService != null) {
-            try {
-                Injector injector = indexService.shardInjectorSafe(shardId);
-                return injector.getInstance(BlobShard.class);
-            } catch (ShardNotFoundException e) {
-                return null;
-            }
-        }
-        return null;
+    public BlobShard blobShard(ShardId shardId) {
+        return indices.get(shardId.getIndex().getUUID()).getBlobShard(shardId.id());
     }
 
-    public BlobShard blobShardSafe(String index, int shardId) {
-        if (isBlobIndex(index)) {
-            return indicesService.indexServiceSafe(index).shardInjectorSafe(shardId).getInstance(BlobShard.class);
-        }
-        throw new BlobsDisabledException(index);
+    /**
+     * Returns the local shardId of the given blob
+     *
+     * @return the local shardId
+     * @throws IndexNotFoundException if provided index does not exist
+     * @throws ShardNotFoundException if the computed shard id is not available locally
+     */
+    private ShardId localShardId(String indexName, String digest) {
+        return clusterService.operationRouting().getShards(clusterService.state(), indexName, null, digest, "_only_local").shardId();
     }
 
-    private BlobIndex blobIndex(String index) {
-        return indicesService.indexServiceSafe(index).injector().getInstance(BlobIndex.class);
-    }
+//    public Index getIndex(String index){
+//        assert isBlobIndex(index): "only blob indices are allowed";
+//        IndexMetaData indexMetaData = clusterService.state().metaData().index(index);
+//        if (indexMetaData != null){
+//            if (indexMetaData.getIndex().)
+//            return indexMetaData.getIndex();
+//        }
+//        assert indexMetaData != null;
+//
+//        retu
+//        if (indexMetaData == null) {
+//            throw new IndexNotFoundException(index);
+//        }
+//        return indexMetaData.getIndex();
+//    }
 
-    private ShardId localShardId(String index, String digest) {
-        return blobIndex(index).shardId(digest);
-    }
-
+    /**
+     * Returns the local BlobShard of the given blob
+     * @return the local shardId
+     * @throws IndexNotFoundException if provided index does not exist
+     * @throws ShardNotFoundException if the computed shard id is not available locally
+     */
     public BlobShard localBlobShard(String index, String digest) {
-        return blobShardSafe(localShardId(index, digest));
+        ShardId shardId = localShardId(index, digest);
+        return blobShardSafe(shardId);
     }
 
-    public BlobShardFuture blobShardFuture(String index, int shardId) {
-        return new BlobShardFuture(this, indicesLifecycle, index, shardId);
 
+    public BlobShard localBlobShard(Index index, String digest) {
+        return blobShardSafe(localShardId(index.getName(), digest));
     }
+
+
+//    public BlobShardFuture blobShardFuture(String index, int shardId) {
+//        return new BlobShardFuture(this, indicesLifecycle, index, shardId);
+//
+//    }
 
     /**
      * check if this index is a blob table
@@ -223,7 +228,7 @@ public class BlobIndicesService extends AbstractLifecycleComponent<BlobIndicesSe
      * This only works for indices that were created via SQL.
      */
     public static boolean isBlobShard(ShardId shardId) {
-        return isBlobIndex(shardId.getIndex());
+        return isBlobIndex(shardId.getIndexName());
     }
 
     /**
@@ -247,64 +252,63 @@ public class BlobIndicesService extends AbstractLifecycleComponent<BlobIndicesSe
     }
 
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().blocks().disableStatePersistence()) {
-            return;
-        }
-        MetaData currentMetaData = event.previousState().metaData();
-        // only delete indices when we already received a state
-        if (currentMetaData == null) {
-            return;
-        }
-        removeIndexLocationsForDeletedIndices(event, currentMetaData);
+    public void afterIndexCreated(IndexService indexService) {
+        // called when the index gets created on a data node
+        logger.debug("afterIndexCreated {}", indexService.index());
+        assert BlobIndicesService.SETTING_INDEX_BLOBS_ENABLED.get(indexService.getMetaData().getSettings()) :
+            "blobs need to be enabled on index";
+        BlobIndex blobIndex = new BlobIndex(indexService);
+        assert !indices.containsKey(indexService.indexUUID()) : "blob index already exists";
+        indices.put(indexService.indexUUID(), blobIndex);
     }
 
-    private void removeIndexLocationsForDeletedIndices(ClusterChangedEvent event, MetaData currentMetaData) {
-        MetaData newMetaData = event.state().metaData();
-        for (IndexMetaData current : currentMetaData) {
-            String index = current.getIndex();
-            if (!newMetaData.hasIndex(index) && isBlobIndex(index)) {
-                deleteBlobIndexLocation(current, index);
-            }
-        }
+    @Override
+    public void beforeIndexClosed(IndexService indexService) {
+        logger.debug("beforeIndexClosed {}", indexService.index());
+        assert BlobIndicesService.SETTING_INDEX_BLOBS_ENABLED.get(indexService.getMetaData().getSettings()) :
+            "blobs need to be enabled on index";
+        assert indices.containsKey(indexService.indexUUID()) : "blob index does not exist upon close";
+        indices.remove(indexService.indexUUID());
     }
 
-    private void deleteBlobIndexLocation(IndexMetaData current, String index) {
-        File indexLocation = null;
-        File customBlobsPath = null;
-        if (current.getSettings().get(BlobIndicesService.SETTING_INDEX_BLOBS_PATH) != null) {
-            customBlobsPath = new File(current.getSettings().get(BlobIndicesService.SETTING_INDEX_BLOBS_PATH));
-            indexLocation = blobEnvironment.indexLocation(new Index(index), customBlobsPath);
-        } else if (blobEnvironment.blobsPath() != null) {
-            indexLocation = blobEnvironment.indexLocation(new Index(index));
-        }
+    @Override
+    public void afterIndexDeleted(Index index, Settings indexSettings) {
+        logger.debug("afterIndexDeleted {}", index);
+        assert BlobIndicesService.SETTING_INDEX_BLOBS_ENABLED.get(indexSettings) : "blobs need to be enabled on index";
+        BlobIndex blobIndex = indices.remove(index.getUUID());
+        assert blobIndex != null : "blob index not found upon index deletion";
+        assert blobIndex.isEmpty() : "blob index still has shards";
+    }
 
-        if (indexLocation == null) {
-            // default shard location - ES logic deletes everything in this case
-            return;
-        }
+    @Override
+    public void afterIndexShardCreated(IndexShard indexShard) {
+        BlobIndex blobIndex = getBlobIndex(indexShard.shardId().getIndex().getUUID());
+        blobIndex.newShard(indexShard);
+    }
 
-        String absolutePath = indexLocation.getAbsolutePath();
-        if (indexLocation.exists()) {
-            logger.debug("[{}] Deleting blob index directory '{}'", index, absolutePath);
-            try {
-                IOUtils.rm(indexLocation.toPath());
-            } catch (IOException e) {
-                logger.warn("Could not delete blob index directory {}", absolutePath);
-            }
-        } else {
-            logger.warn("wanted to delete blob index directory {} but it was already gone", absolutePath);
-        }
+    private BlobIndex getBlobIndex(String uuid){
+        BlobIndex blobIndex = indices.get(uuid);
+        assert blobIndex != null : "blob index not found";
+        return blobIndex;
+    }
 
-        // check if custom index blobs path is empty, if so delete whole path
-        if (customBlobsPath != null && blobEnvironment.isCustomBlobPathEmpty(customBlobsPath)) {
-            logger.debug("[{}] Empty per table defined blobs path found, deleting leftover folders inside {}",
-                index, customBlobsPath.getAbsolutePath());
-            try {
-                FileSystemUtils.deleteSubDirectories(customBlobsPath.toPath());
-            } catch (IOException e) {
-                logger.warn("Could not delete custom blob path {}", customBlobsPath.getAbsolutePath());
-            }
-        }
+    private BlobShard getBlobShard(ShardId shardId){
+        BlobShard bs = getBlobIndex(shardId.getIndex().getUUID()).getBlobShard(shardId.getId());
+        assert bs != null: "blob shard not found";
+        return bs;
+    }
+
+    @Override
+    public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+        logger.debug("afterShardClosed {}", shardId);
+        BlobShard blobShard = getBlobShard(shardId);
+    }
+
+    @Override
+    public void beforeIndexShardDeleted(ShardId shardId, Settings indexSettings) {
+        BlobIndex blobIndex = getBlobIndex(shardId.getIndex().getUUID());
+        BlobShard bs = blobIndex.removeShard(shardId.getId());
+        assert bs != null: "blob shard not found";
+        bs.deletePath();
     }
 }

@@ -73,7 +73,7 @@ public class DigestBlobTests extends CrateUnitTest {
         byte[] buffer = new byte[15];
         try (FileInputStream stream = new FileInputStream(digestBlob.file())) {
             stream.read(buffer, 0, 15);
-            assertEquals("ABCDEFGHIJKLMNO", new BytesArray(buffer).toUtf8().trim());
+            assertEquals("ABCDEFGHIJKLMNO", new BytesArray(buffer).utf8ToString().trim());
         }
 
         File file = digestBlob.commit();
@@ -82,7 +82,7 @@ public class DigestBlobTests extends CrateUnitTest {
 
         try (FileInputStream stream = new FileInputStream(file)) {
             stream.read(buffer, 0, 15);
-            assertEquals("ABCDEFGHIJKLMNO", new BytesArray(buffer).toUtf8().trim());
+            assertEquals("ABCDEFGHIJKLMNO", new BytesArray(buffer).utf8ToString().trim());
         }
 
         // assert file created
@@ -111,7 +111,7 @@ public class DigestBlobTests extends CrateUnitTest {
         byte[] buffer = new byte[15];
         try (FileInputStream stream = new FileInputStream(digestBlob.file())) {
             stream.read(buffer, 0, 15);
-            assertEquals("ABCDEFGHIJKLMNO", new BytesArray(buffer).toUtf8().trim());
+            assertEquals("ABCDEFGHIJKLMNO", new BytesArray(buffer).utf8ToString().trim());
         }
 
         File file = digestBlob.commit();
@@ -120,7 +120,7 @@ public class DigestBlobTests extends CrateUnitTest {
         buffer = new byte[15];
         try (FileInputStream stream = new FileInputStream(file)) {
             stream.read(buffer, 0, 15);
-            assertEquals("ABCDEFGHIJKLMNO", new BytesArray(buffer).toUtf8().trim());
+            assertEquals("ABCDEFGHIJKLMNO", new BytesArray(buffer).utf8ToString().trim());
         }
 
         // assert file created

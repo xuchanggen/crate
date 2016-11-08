@@ -24,7 +24,6 @@ package io.crate.rest;
 import io.crate.Build;
 import io.crate.Version;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -42,19 +41,16 @@ public class CrateRestMainAction extends BaseRestHandler {
 
     private final Version version;
     private final RestController controller;
-    private final ClusterName clusterName;
     private final ClusterService clusterService;
 
     @Inject
     public CrateRestMainAction(Settings settings,
                                RestController controller,
-                               ClusterName clusterName,
                                ClusterService clusterService,
                                CrateRestFilter crateRestFilter) {
         super(settings);
         this.version = Version.CURRENT;
         this.controller = controller;
-        this.clusterName = clusterName;
         this.clusterService = clusterService;
         controller.registerFilter(crateRestFilter);
     }
@@ -88,7 +84,7 @@ public class CrateRestMainAction extends BaseRestHandler {
             if (settings.get("name") != null) {
                 builder.field("name", settings.get("name"));
             }
-            builder.field("cluster_name", clusterName.value());
+            builder.field("cluster_name", clusterService.getClusterName().value());
             builder.startObject("version")
                 .field("number", version.number())
                 .field("build_hash", Build.CURRENT.hash())

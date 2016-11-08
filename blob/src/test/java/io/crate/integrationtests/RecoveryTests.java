@@ -31,19 +31,20 @@ import io.crate.blob.v2.BlobIndicesService;
 import io.crate.blob.v2.BlobShard;
 import io.crate.common.Hex;
 import io.crate.test.utils.Blobs;
-import org.apache.log4j.ConsoleAppender;
-import org.apache.log4j.Logger;
-import org.apache.log4j.PatternLayout;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.appender.ConsoleAppender;
+import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -60,6 +61,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
 @ThreadLeakFilters(defaultFilters = true, filters = {RecoveryTests.RecoveryTestThreadFilter.class})
+@TestLogging("io.crate:TRACE,org.elasticsearch.indices.IndicesService:TRACE")
 public class RecoveryTests extends BlobIntegrationTestBase {
 
     public static class RecoveryTestThreadFilter implements ThreadFilter {
@@ -71,6 +73,8 @@ public class RecoveryTests extends BlobIntegrationTestBase {
 
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(25, TimeUnit.MINUTES);
 
+
+
     // the time to sleep between chunk requests in upload
     private AtomicInteger timeBetweenChunks = new AtomicInteger();
 
@@ -80,22 +84,25 @@ public class RecoveryTests extends BlobIntegrationTestBase {
         Logger logger;
         ConsoleAppender consoleAppender;
 
-        logger = Logger.getLogger(
-            "org.elasticsearch.io.crate.blob.recovery.BlobRecoveryHandler");
-        //logger.setLevel(Level.TRACE);
-        consoleAppender = new ConsoleAppender(new PatternLayout("%r [%t] %-5p %c %x - %m\n"));
-        logger.addAppender(consoleAppender);
+        PatternLayout layout = PatternLayout.newBuilder().withPattern("%r [%t] %-5p %c %x - %m\n").build();
 
-        logger = Logger.getLogger("org.elasticsearch.io.crate.blob.DigestBlob");
+        logger = Loggers.getLogger("org.elasticsearch.io.crate.blob.recovery.BlobRecoveryHandler");
         //logger.setLevel(Level.TRACE);
-        consoleAppender = new ConsoleAppender(new PatternLayout("%r [%t] %-5p %c %x - %m\n"));
-        logger.addAppender(consoleAppender);
 
-        logger = Logger.getLogger(
-            "org.elasticsearch.io.crate.integrationtests.RecoveryTests");
-        //logger.setLevel(Level.TRACE);
-        consoleAppender = new ConsoleAppender(new PatternLayout("%r [%t] %-5p %c %x - %m\n"));
-        logger.addAppender(consoleAppender);
+//        consoleAppender = ConsoleAppender.newBuilder().setLayout(layout).build();
+//        logger.
+//        logger.addAppender(consoleAppender);
+//
+//        logger = Logger.getLogger("org.elasticsearch.io.crate.blob.DigestBlob");
+//        //logger.setLevel(Level.TRACE);
+//        consoleAppender = new ConsoleAppender(new PatternLayout("%r [%t] %-5p %c %x - %m\n"));
+//        logger.addAppender(consoleAppender);
+//
+//        logger = Logger.getLogger(
+//            "org.elasticsearch.io.crate.integrationtests.RecoveryTests");
+//        //logger.setLevel(Level.TRACE);
+//        consoleAppender = new ConsoleAppender(new PatternLayout("%r [%t] %-5p %c %x - %m\n"));
+//        logger.addAppender(consoleAppender);
     }
 
     private String uploadFile(Client client, String content) {
@@ -221,19 +228,19 @@ public class RecoveryTests extends BlobIntegrationTestBase {
             String toNode = node1.equals(fromNode) ? node2 : node1;
             logger.trace("--> START relocate the shard from {} to {}", fromNode, toNode);
             internalCluster().client(node1).admin().cluster().prepareReroute()
-                .add(new MoveAllocationCommand(new ShardId(BlobIndicesService.fullIndexName("test"), 0), fromNode, toNode))
+                .add(new MoveAllocationCommand(BlobIndicesService.fullIndexName("test"), 0, fromNode, toNode))
                 .execute().actionGet();
             ClusterHealthResponse clusterHealthResponse = internalCluster().client(node1).admin().cluster()
                 .prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
-                .setWaitForRelocatingShards(0)
+// XDOBE:                 .setWaitForRelocatingShards(0)
                 .setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
 
             assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
             clusterHealthResponse = internalCluster().client(node2).admin().cluster()
                 .prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
-                .setWaitForRelocatingShards(0)
+// XDOBE:                .setWaitForRelocatingShards(0)
                 .setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
             assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
             logger.trace("--> DONE relocate the shard from {} to {}", fromNode, toNode);

@@ -29,9 +29,9 @@ import java.util.UUID;
 
 public class GetBlobHeadRequest extends BlobTransportRequest {
 
-    public long endPos;
+    long endPos;
 
-    public GetBlobHeadRequest() {
+    GetBlobHeadRequest() {
     }
 
     public GetBlobHeadRequest(String targetNodeId, UUID transferId, long endPos) {

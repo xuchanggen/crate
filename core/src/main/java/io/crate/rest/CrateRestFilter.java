@@ -26,6 +26,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
 
@@ -40,7 +41,8 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
  */
 public class CrateRestFilter extends RestFilter {
 
-    public static final String ES_API_ENABLED_SETTING = "es.api.enabled";
+    public static final Setting<Boolean> ES_API_ENABLED_SETTING = Setting.boolSetting("es.api.enabled", false, Setting.Property.NodeScope);
+
     private static final Set<String> SUPPORTED_ENDPOINTS = ImmutableSet.of(
         "/admin",
         "/_sql",
@@ -57,7 +59,7 @@ public class CrateRestFilter extends RestFilter {
 
     @Inject
     public CrateRestFilter(Settings settings) {
-        this.esApiEnabled = settings.getAsBoolean(ES_API_ENABLED_SETTING, false);
+        this.esApiEnabled = ES_API_ENABLED_SETTING.get(settings);
         Logger logger = Loggers.getLogger(getClass().getPackage().getName(), settings);
         logger.info("Elasticsearch HTTP REST API {}enabled", esApiEnabled ? "" : "not ");
     }

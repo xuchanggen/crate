@@ -32,7 +32,8 @@ import java.util.Collection;
 import java.util.List;
 
 
-public class ReplacingSymbolVisitor<C> extends SymbolVisitor<C, Symbol> {
+public class ReplacingSymbolVisitor<C> extends SymbolVisitor<C, Symbol>
+    implements com.google.common.base.Function<Symbol, Symbol> {
 
     private final ReplaceMode mode;
 
@@ -81,4 +82,8 @@ public class ReplacingSymbolVisitor<C> extends SymbolVisitor<C, Symbol> {
         return visitReference(symbol, context);
     }
 
+    @Override
+    public Symbol apply(Symbol symbol) {
+        return process(symbol, null);
+    }
 }

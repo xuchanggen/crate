@@ -645,4 +645,10 @@ public class JoinIntegrationTest extends SQLTransportIntegrationTest {
                 "limit 1");
         assertThat(TestingHelpers.printedTable(response.rows()), is("4.0\n"));
     }
+
+    @Test
+    public void testJoinOnAggWithOrderBy() throws Exception {
+        execute("select sum(t1.col1) from unnest([1, 1]) t1, unnest([1, 1]) t2 order by 1");
+        assertThat(TestingHelpers.printedTable(response.rows()), is("4.0\n"));
+    }
 }

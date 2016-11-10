@@ -37,6 +37,8 @@ public class Symbols {
 
     private static final HasColumnVisitor HAS_COLUMN_VISITOR = new HasColumnVisitor();
 
+    public static final ReplacingSymbolVisitor<Void> DEEP_COPY = new ReplacingSymbolVisitor<>(ReplaceMode.COPY);
+
     public static final com.google.common.base.Function<Symbol, DataType> TYPES_FUNCTION =
         new com.google.common.base.Function<Symbol, DataType>() {
             @Nullable

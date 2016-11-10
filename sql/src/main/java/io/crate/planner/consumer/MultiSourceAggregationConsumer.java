@@ -27,10 +27,7 @@ import io.crate.analyze.MultiSourceSelect;
 import io.crate.analyze.QuerySpec;
 import io.crate.analyze.RelationSource;
 import io.crate.analyze.relations.AnalyzedRelation;
-import io.crate.analyze.symbol.Aggregation;
-import io.crate.analyze.symbol.Field;
-import io.crate.analyze.symbol.Function;
-import io.crate.analyze.symbol.Symbol;
+import io.crate.analyze.symbol.*;
 import io.crate.metadata.Functions;
 import io.crate.metadata.RowGranularity;
 import io.crate.operation.projectors.TopN;
@@ -71,7 +68,7 @@ class MultiSourceAggregationConsumer implements Consumer {
             if (!qs.hasAggregates() || qs.groupBy().isPresent()) {
                 return null;
             }
-            qs = qs.copyAndReplace(i -> i); // copy because MSS planning mutates symbols
+            qs = qs.copyAndReplace(Symbols.DEEP_COPY); // copy because MSS planning mutates symbols
             ProjectionBuilder projectionBuilder = new ProjectionBuilder(functions, qs);
             SplitPoints splitPoints = projectionBuilder.getSplitPoints();
             removeAggregationsAndLimitsFromMSS(multiSourceSelect, splitPoints);

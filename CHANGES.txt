@@ -5,6 +5,8 @@ Changes for Crate
 Unreleased
 ==========
 
+ - Added support for global aggregations on joins
+
  - Fixed NPE in the ``percentile`` aggregation fucntion. The NPE was occurring
    in case when queried shards have no records.
 

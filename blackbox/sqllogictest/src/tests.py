@@ -11,7 +11,7 @@ CRATE_HTTP_PORT = GLOBAL_PORT_POOL.get()
 CRATE_TRANSPORT_PORT = GLOBAL_PORT_POOL.get()
 
 tests_path = os.path.abspath(os.path.join(
-    project_root, 'blackbox', 'sqllogictest', 'src', 'tests'))
+    project_root, 'blackbox', 'sqllogictest', 'testfiles', 'test'))
 
 # Enable to be able to dump threads in case something gets stuck
 faulthandler.enable()
@@ -22,6 +22,8 @@ class TestMaker(type):
     def __new__(cls, name, bases, attrs):
         for filename in os.listdir(tests_path):
             filepath = os.path.join(tests_path, filename)
+            if os.path.isdir(filepath):
+                continue
             attrs['test_' + filename] = partial(
                 run_file,
                 fh=open(filepath, 'r', encoding='utf-8'),

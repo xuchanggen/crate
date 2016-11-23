@@ -119,7 +119,7 @@ class SelectStatementPlanner {
                 return new NoopPlan(context.jobId());
             }
 
-            FetchPushDown fetchPushDown = new FetchPushDown(querySpec, table.tableRelation());
+            FetchPushDown fetchPushDown = new FetchPushDown(querySpec, table.tableRelation(), table.relationId());
             QueriedDocTable subRelation = fetchPushDown.pushDown();
             if (subRelation == null) {
                 return invokeConsumingPlanner(table, context);
@@ -198,8 +198,9 @@ class SelectStatementPlanner {
                                                          FetchPhase fetchPhase,
                                                          int fetchSize) {
         Map<TableIdent, FetchSource> fetchSources = ImmutableMap.of(table.tableRelation().tableInfo().ident(),
-            new FetchSource(table.tableRelation().tableInfo().partitionedByColumns(),
-                ImmutableList.of(fetchPushDown.docIdCol()),
+            new FetchSource(
+                table.tableRelation().tableInfo().partitionedByColumns(),
+                ImmutableList.of(fetchPushDown.fetchIdCol()),
                 fetchPushDown.fetchRefs()));
 
         return new FetchProjection(

@@ -36,8 +36,9 @@ class TestMaker(type):
                 run_file,
                 fh=filepath.open('r', encoding='utf-8'),
                 hosts='localhost:' + str(CRATE_HTTP_PORT),
-                verbose=False,
-                failfast=True
+                verbose=True,
+                failfast=True,
+                unique=True
             )
         return type.__new__(cls, name, bases, attrs)
 

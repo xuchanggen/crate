@@ -14,6 +14,7 @@ from hashlib import md5
 from crate.client import connect
 from crate.client import exceptions
 from tqdm import tqdm
+import re
 
 
 RE_VARCHAR = re.compile('VARCHAR\(\d+\)')
@@ -253,12 +254,13 @@ def _drop_tables(cursor):
         cursor.execute('drop table ' + table)
 
 
-def run_file(fh, hosts, verbose, failfast):
+def run_file(fh, hosts, verbose, failfast, unique):
     conn = connect(hosts)
     cursor = conn.cursor()
     worked = 0
     failures = 0
     unsupported_statements = []
+    unique_exceptions = []
     incorrect_results = []
     commands = get_commands(fh)
     commands = (cmd for cmd in commands if _exec_on_crate(cmd))
@@ -287,15 +289,30 @@ def run_file(fh, hosts, verbose, failfast):
         _drop_tables(cursor)
         cursor.close()
         conn.close()
+
+
+    print('TEST FILE: {0}\n{1}'.format(fh.name, '=' * (len(fh.name)+11)))
     print('{0} queries worked'.format(worked))
     print('{0} queries are unsupported'.format(failures))
     if not failfast:
         for incorrect in incorrect_results:
             print('Query: \n\t{0}\n\t{1}'.format(*incorrect))
     if verbose:
-        print('Unsupported statements:')
+        print('Unsupported statements:' if not unique else 'Unique unsupported statements:')
         for unsupported in unsupported_statements:
-            print('Query: \n\t{0}\n\t{1}'.format(*unsupported))
+            if unique:
+                formatted_message = format_exception_message(str(unsupported[1]))
+                if formatted_message not in unique_exceptions:
+                    unique_exceptions.append(formatted_message)
+                    print('Unique Unsupported Message: \n\t{0}\nExample Query:\n\t{1}\n'.format(formatted_message, unsupported[0]))
+            else:
+                print('Query: \n\t{0}\n\t{1}'.format(*unsupported))
+
+def format_exception_message(e):
+    if ': line ' in e:
+        return re.sub('(: line )?(:)?\d', '', e)
+    else:
+        return e
 
 
 def main():
@@ -305,8 +322,9 @@ def main():
     parser.add_argument('--hosts', type=str, default='http://localhost:4200')
     parser.add_argument('-v', '--verbose', action='count')
     parser.add_argument('--failfast', action='store_true', default=False)
+    parser.add_argument('--unique', action='store_true', default=False)
     args = parser.parse_args()
-    run_file(args.file, args.hosts, args.verbose, args.failfast)
+    run_file(args.file, args.hosts, args.verbose, args.failfast, args.unique)
 
 
 if __name__ == "__main__":

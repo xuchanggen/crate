@@ -1,5 +1,6 @@
 import unittest
 import os
+import re
 import faulthandler
 import pathlib
 from functools import partial
@@ -19,25 +20,26 @@ faulthandler.enable()
 
 # might want to change this to a blacklist at some point
 whitelist = set([
-    'select1.test',
-    'random/select/slt_good_0.test',
+    'select\d+.test',
+    'random/select/slt_good_\d+.test',
 ])
 
 
 class TestMaker(type):
 
     def __new__(cls, name, bases, attrs):
+        patterns = [re.compile(item) for item in whitelist]
         for filename in tests_path.glob('**/*.test'):
             filepath = tests_path / filename
             relpath = str(filepath.relative_to(tests_path))
-            if relpath not in whitelist:
+            if not True in [pattern.match(str(relpath)) and True or False for pattern in patterns]:
                 continue
             attrs['test_' + relpath] = partial(
                 run_file,
                 fh=filepath.open('r', encoding='utf-8'),
                 hosts='localhost:' + str(CRATE_HTTP_PORT),
-                verbose=False,
-                failfast=True
+                verbose=True,
+                failfast=False
             )
         return type.__new__(cls, name, bases, attrs)
 

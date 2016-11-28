@@ -33,13 +33,13 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static io.crate.testing.TestingHelpers.resolveCanonicalString;
 import static org.hamcrest.Matchers.*;
 
 @ESIntegTestCase.ClusterScope(numClientNodes = 0, numDataNodes = 2)
@@ -61,6 +61,7 @@ public class SysShardsTest extends SQLTransportIntegrationTest {
         sqlExecutor.ensureGreen();
     }
 
+
     @Test
     public void testPathAndBlobPath() throws Exception {
         Path blobs = createTempDir("blobs");
@@ -74,16 +75,16 @@ public class SysShardsTest extends SQLTransportIntegrationTest {
                 "order by table_name asc");
         // b1
         // path + /blobs == blob_path without custom blob path
-        assertThat(response.rows()[0][0] + File.separator + "blobs", is(response.rows()[0][1]));
+        assertThat(response.rows()[0][0] + resolveCanonicalString("/blobs"), is(response.rows()[0][1]));
 
         // b2
         String b2Path = (String) response.rows()[1][0];
-        assertThat(b2Path, containsString(File.separator + "nodes" + File.separator));
-        assertThat(b2Path, endsWith(File.separator + "indices" + File.separator + ".blob_b2" + File.separator + "0"));
+        assertThat(b2Path, containsString(resolveCanonicalString("/nodes/")));
+        assertThat(b2Path, endsWith(resolveCanonicalString("/indices/.blob_b2/0")));
 
         String b2BlobPath = (String) response.rows()[1][1];
-        assertThat(b2BlobPath, containsString(File.separator + "nodes" + File.separator));
-        assertThat(b2BlobPath, endsWith(File.separator + "indices" + File.separator + ".blob_b2" + File.separator + "0" + File.separator + "blobs"));
+        assertThat(b2BlobPath, containsString(resolveCanonicalString("/nodes/")));
+        assertThat(b2BlobPath, endsWith(resolveCanonicalString("/indices/.blob_b2/0/blobs")));
         // t1
         assertThat(response.rows()[2][1], nullValue());
     }

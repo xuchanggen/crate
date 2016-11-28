@@ -172,7 +172,12 @@ public class ExpressionAnalyzer {
                 ImmutableList.<DataType>of(new SetType(argumentTypes.get(0)));
 
             FunctionIdent ident = new FunctionIdent(nodeName, outerArgumentTypes);
-            functionInfo = getFunctionInfo(ident);
+            try {
+                functionInfo = getFunctionInfo(ident);
+            } catch (UnsupportedOperationException ex) {
+                throw new UnsupportedOperationException("Function " + node.getName().toString() + "() " +
+                    "is not supported in combination with distinct", ex);
+            }
             arguments = outerArguments;
         } else {
             FunctionIdent ident = new FunctionIdent(node.getName().toString(), argumentTypes);

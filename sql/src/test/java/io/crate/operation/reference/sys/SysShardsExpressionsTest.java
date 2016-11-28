@@ -50,6 +50,7 @@ import org.elasticsearch.test.cluster.NoopClusterService;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
@@ -144,7 +145,7 @@ public class SysShardsExpressionsTest extends CrateUnitTest {
     @Test
     public void testPathExpression() throws Exception {
         ShardPathExpression shardPathExpression = new ShardPathExpression(indexShard);
-        assertThat(shardPathExpression.value().utf8ToString(), is("/dummy/wikipedia_de/1"));
+        assertThat(shardPathExpression.value().utf8ToString(), is(File.separator + "dummy" + File.separator + "wikipedia_de" + File.separator + "1"));
     }
 
     @Test
